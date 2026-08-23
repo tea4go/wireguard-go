@@ -1,3 +1,6 @@
 wireguard-go
-.cache
+wireguard
 *.exe
+
+conf/
+.cache
