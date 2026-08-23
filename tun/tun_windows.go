@@ -63,6 +63,21 @@ var (
 	WintunStaticRequestedGUID *windows.GUID
 )
 
+// CheckWintunReady 在创建 TUN 设备之前预检查 Wintun 是否就绪。
+// 返回 nil 表示就绪，否则返回具体的不就绪原因（DLL 缺失、驱动未安装/未运行等）。
+func CheckWintunReady() error {
+	dllVersion := wintun.Version()
+	if dllVersion == "unknown" {
+		return fmt.Errorf("wintun.dll 未找到或无法加载，请确保 wintun.dll 在当前目录或已安装到系统")
+	}
+	driverVersion, err := wintun.RunningVersion()
+	if err != nil {
+		return fmt.Errorf("Wintun 驱动未安装或未运行（DLL 版本: %s）：%v", dllVersion, err)
+	}
+	_ = driverVersion
+	return nil
+}
+
 // procyield 直接调用 Go runtime 内部的处理器让出指令（PAUSE/YIELD），用于用户态轻量级自旋。
 //
 //go:linkname procyield runtime.procyield
@@ -85,7 +100,7 @@ func CreateTUNWithRequestedGUID(ifname string, requestedGUID *windows.GUID, mtu 
 	// 第一步：调用 wintun 创建或打开虚拟网卡适配器
 	wt, err := wintun.CreateAdapter(ifname, WintunTunnelType, requestedGUID)
 	if err != nil {
-		return nil, fmt.Errorf("Error creating interface: %w", err)
+		return nil, err
 	}
 
 	// 第二步：确定 MTU，默认 1420（预留 WireGuard 额外封装空间）

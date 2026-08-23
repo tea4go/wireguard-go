@@ -93,6 +93,10 @@ func main() {
 	)
 	logger.Verbosef("正在启动 wireguard-go v%s", Version)
 
+	if err := tun.CheckWintunReady(); err != nil {
+		exitWithError(logger, err.Error())
+	}
+
 	tun, err := tun.CreateTUN(interfaceName, 0)
 	if err == nil {
 		realInterfaceName, err2 := tun.Name()
