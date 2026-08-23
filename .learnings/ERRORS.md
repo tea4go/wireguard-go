@@ -4,6 +4,44 @@ Command failures and integration errors.
 
 ---
 
+## [ERR-20260823-006] inspect-build-artifact
+
+**Logged**: 2026-08-23T15:50:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+
+检查 Wintun 部署目录时假定根目录存在 `wireguard-go.exe`，但当前工作区没有该构建产物。
+
+### Error
+
+```text
+Cannot find path 'wireguard-go.exe' because it does not exist.
+```
+
+### Context
+
+- 目标是确认 `wintun.dll` 是否已随可执行文件部署。
+- 源码和 Go 绑定检查不依赖现有 EXE。
+
+### Suggested Fix
+
+检查可选构建产物前先使用 `Test-Path`，不存在时提示需要构建。
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: wireguard-go.exe
+
+### Resolution
+
+- **Resolved**: 2026-08-23T15:50:00+08:00
+- **Notes**: 改为在教程中提供构建和部署步骤。
+
+---
+
 ## [ERR-20260823-005] git-diff-check
 
 **Logged**: 2026-08-23T15:40:00+08:00
