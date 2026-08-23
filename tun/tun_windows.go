@@ -114,7 +114,7 @@ func CheckWintunReady() error {
 	}
 	driverVersion, err := wintun.RunningVersion()
 	if err != nil {
-		return fmt.Errorf("Wintun 驱动未安装或未运行（DLL 版本: %s）：%v", dllVersion, err)
+		return fmt.Errorf("Wintun 驱动未安装或未运行(wintun %s), %v", dllVersion, err)
 	}
 	_ = driverVersion
 	return nil
