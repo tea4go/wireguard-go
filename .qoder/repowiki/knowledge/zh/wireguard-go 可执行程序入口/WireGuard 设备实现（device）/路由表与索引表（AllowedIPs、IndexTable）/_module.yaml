@@ -8,5 +8,4 @@ scope:
 source_files: []
 depends_on: []
 related_to:
-    - path: device/packet_io
-    - path: device/peer_session
+    - path: device/device_core

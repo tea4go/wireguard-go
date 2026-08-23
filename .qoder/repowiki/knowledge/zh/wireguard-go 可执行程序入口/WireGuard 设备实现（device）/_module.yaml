@@ -5,8 +5,4 @@ scope:
     - device/
 source_files: []
 depends_on: []
-related_to:
-    - path: conn
-    - path: ipc
-    - path: support_libs
-    - path: tun
+related_to: []

@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: master
 nodes_managed: true
-exported_at: "2026-08-23T04:22:21Z"
+exported_at: "2026-08-23T05:00:04Z"
 modules:
     "":
-        dir_name: wireguard-go 用户态守护进程入口
-        title: wireguard-go 用户态守护进程入口
+        dir_name: wireguard-go 可执行程序入口
+        title: wireguard-go 可执行程序入口
         scope:
             - main.go
             - main_windows.go
@@ -39,7 +39,7 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: device
+            - path: device/device_core
     device:
         dir_name: WireGuard 设备实现（device）
         title: WireGuard 设备实现（device）
@@ -56,11 +56,7 @@ modules:
             - device/routing_tables
             - device/uapi_ipc
         depends_on: []
-        related_to:
-            - path: conn
-            - path: ipc
-            - path: support_libs
-            - path: tun
+        related_to: []
     device/device_core:
         dir_name: WireGuard 设备核心与状态管理
         title: WireGuard 设备核心与状态管理
@@ -72,7 +68,15 @@ modules:
         children: []
         depends_on: []
         related_to:
+            - path: conn
+            - path: device/noise_protocol
+            - path: device/packet_io
             - path: device/peer_session
+            - path: device/platform_and_runtime
+            - path: device/routing_tables
+            - path: ipc
+            - path: support_libs
+            - path: tun
     device/noise_protocol:
         dir_name: Noise 握手协议与密钥派生
         title: Noise 握手协议与密钥派生
@@ -84,7 +88,7 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: device/peer_session
+            - path: device/device_core
     device/packet_io:
         dir_name: 数据包收发与加密流水线
         title: 数据包收发与加密流水线
@@ -96,7 +100,7 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: device/routing_tables
+            - path: device/device_core
     device/peer_session:
         dir_name: 对等端会话与密钥管理
         title: 对等端会话与密钥管理
@@ -109,8 +113,6 @@ modules:
         depends_on: []
         related_to:
             - path: device/device_core
-            - path: device/noise_protocol
-            - path: device/routing_tables
     device/platform_and_runtime:
         dir_name: 设备运行时基础设施（对象池、日志与TUN事件）
         title: 设备运行时基础设施（对象池、日志与TUN事件）
@@ -122,6 +124,7 @@ modules:
         children: []
         depends_on: []
         related_to:
+            - path: device/device_core
             - path: device/platform_variants
     device/platform_variants:
         dir_name: 平台相关队列常量与粘性路由监听
@@ -149,8 +152,7 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: device/packet_io
-            - path: device/peer_session
+            - path: device/device_core
     device/uapi_ipc:
         dir_name: UAPI 配置协议与 Cookie 防护
         title: UAPI 配置协议与 Cookie 防护
@@ -172,7 +174,7 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: device
+            - path: device/device_core
             - path: device/uapi_ipc
     support_libs:
         dir_name: 网络协议支撑库（限速、防重放、可取消 I_O、TAI64N 时间戳）
@@ -186,7 +188,7 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: device
+            - path: device/device_core
     tun:
         dir_name: TUN 设备抽象与内核网络栈适配层
         title: TUN 设备抽象与内核网络栈适配层
@@ -196,4 +198,4 @@ modules:
         children: []
         depends_on: []
         related_to:
-            - path: device
+            - path: device/device_core

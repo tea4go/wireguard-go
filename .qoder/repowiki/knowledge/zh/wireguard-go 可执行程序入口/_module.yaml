@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: wireguard-go 用户态守护进程入口
+title: wireguard-go 可执行程序入口
 scope:
     - main.go
     - main_windows.go

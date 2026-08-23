@@ -8,4 +8,5 @@ scope:
 source_files: []
 depends_on: []
 related_to:
+    - path: device/device_core
     - path: device/platform_variants

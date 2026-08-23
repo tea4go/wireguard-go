@@ -8,4 +8,12 @@ scope:
 source_files: []
 depends_on: []
 related_to:
+    - path: conn
+    - path: device/noise_protocol
+    - path: device/packet_io
     - path: device/peer_session
+    - path: device/platform_and_runtime
+    - path: device/routing_tables
+    - path: ipc
+    - path: support_libs
+    - path: tun
