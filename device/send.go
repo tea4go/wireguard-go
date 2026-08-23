@@ -440,8 +440,8 @@ func (device *Device) RoutineEncryption(id int) {
 	var paddingZeros [PaddingMultiple]byte
 	var nonce [chacha20poly1305.NonceSize]byte
 
-	defer device.log.Verbosef("Routine: encryption worker %d - stopped", id)
-	device.log.Verbosef("Routine: encryption worker %d - started", id)
+	defer device.log.Verbosef("Routine: encryption worker %3d - stopped", id)
+	device.log.Verbosef("Routine: encryption worker %3d - started", id)
 
 	for elemsContainer := range device.queue.encryption.c {
 		for _, elem := range elemsContainer.elems {

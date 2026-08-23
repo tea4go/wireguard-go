@@ -3,10 +3,55 @@ package conn
 import (
 	"encoding/binary"
 	"net"
+	"strings"
 	"testing"
 
 	"golang.org/x/net/ipv6"
 )
+
+func TestStdNetBindParseEndpointAllowsHostname(t *testing.T) {
+	bind := NewStdNetBind().(*StdNetBind)
+	ep, err := bind.ParseEndpoint("localhost:51820")
+	if err != nil {
+		t.Fatalf("ParseEndpoint returned error: %v", err)
+	}
+	if ep == nil {
+		t.Fatal("ParseEndpoint returned nil endpoint")
+	}
+	if !ep.DstIP().IsValid() {
+		t.Fatalf("expected resolved destination IP, got %v", ep.DstIP())
+	}
+}
+
+func TestStdNetBindParseEndpointDefersHostnameResolution(t *testing.T) {
+	bind := NewStdNetBind().(*StdNetBind)
+	ep, err := bind.ParseEndpoint("this-domain-should-never-exist.invalid:51820")
+	if err != nil {
+		t.Fatalf("ParseEndpoint returned error: %v", err)
+	}
+	if got := ep.DstToString(); got != "this-domain-should-never-exist.invalid:51820" {
+		t.Fatalf("expected original endpoint string, got %q", got)
+	}
+}
+
+func TestStdNetBindSendResolvesHostnameAtSendTime(t *testing.T) {
+	bind := NewStdNetBind().(*StdNetBind)
+	ep, err := bind.ParseEndpoint("this-domain-should-never-exist.invalid:51820")
+	if err != nil {
+		t.Fatalf("ParseEndpoint returned error: %v", err)
+	}
+	defer bind.Close()
+	if _, _, err := bind.Open(0); err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	err = bind.Send([][]byte{{0x01}}, ep)
+	if err == nil {
+		t.Fatal("expected Send to fail when hostname cannot be resolved")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "host") && !strings.Contains(strings.ToLower(err.Error()), "name") {
+		t.Fatalf("expected hostname resolution related error, got %v", err)
+	}
+}
 
 func TestStdNetBindReceiveFuncAfterClose(t *testing.T) {
 	bind := NewStdNetBind().(*StdNetBind)

@@ -420,6 +420,34 @@ func (device *Device) SendKeepalivesToPeersWithCurrentKeypair() {
 	device.peers.RUnlock()
 }
 
+// HandleNetworkChange refreshes the UDP bind after the underlying network changes
+// and proactively sends traffic so the session can recover without waiting for
+// later user traffic.
+func (device *Device) HandleNetworkChange() error {
+	if !device.isUp() {
+		return nil
+	}
+	if err := device.BindUpdate(); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	device.peers.RLock()
+	for _, peer := range device.peers.keyMap {
+		peer.keypairs.RLock()
+		hasCurrentKeypair := peer.keypairs.current != nil && !peer.keypairs.current.created.Add(RejectAfterTime).Before(now)
+		peer.keypairs.RUnlock()
+
+		if hasCurrentKeypair {
+			peer.SendKeepalive()
+			continue
+		}
+		peer.SendHandshakeInitiation(false)
+	}
+	device.peers.RUnlock()
+	return nil
+}
+
 // closeBindLocked closes the device's net.bind.
 // The caller must hold the net mutex.
 func closeBindLocked(device *Device) error {

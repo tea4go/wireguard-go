@@ -76,6 +76,9 @@ func NewStdNetBind() Bind {
 type StdNetEndpoint struct {
 	// AddrPort is the endpoint destination.
 	netip.AddrPort
+	hostname string
+	port     uint16
+	original string
 	// src is the current sticky source address and interface index, if
 	// supported. Typically this is a PKTINFO structure from/for control
 	// messages, see unix.PKTINFO for an example.
@@ -88,12 +91,19 @@ var (
 )
 
 func (*StdNetBind) ParseEndpoint(s string) (Endpoint, error) {
-	e, err := netip.ParseAddrPort(s)
+	if e, err := netip.ParseAddrPort(s); err == nil {
+		return &StdNetEndpoint{
+			AddrPort: e,
+		}, nil
+	}
+	hostPort, err := parseHostPortEndpoint(s)
 	if err != nil {
 		return nil, err
 	}
 	return &StdNetEndpoint{
-		AddrPort: e,
+		hostname: hostPort.host,
+		port:     hostPort.port,
+		original: hostPort.original,
 	}, nil
 }
 
@@ -105,18 +115,36 @@ func (e *StdNetEndpoint) ClearSrc() {
 }
 
 func (e *StdNetEndpoint) DstIP() netip.Addr {
-	return e.AddrPort.Addr()
+	addrPort, err := e.resolveAddrPort()
+	if err != nil {
+		return netip.Addr{}
+	}
+	return addrPort.Addr()
 }
 
 // See control_default,linux, etc for implementations of SrcIP and SrcIfidx.
 
 func (e *StdNetEndpoint) DstToBytes() []byte {
-	b, _ := e.AddrPort.MarshalBinary()
+	addrPort, err := e.resolveAddrPort()
+	if err != nil {
+		return nil
+	}
+	b, _ := addrPort.MarshalBinary()
 	return b
 }
 
 func (e *StdNetEndpoint) DstToString() string {
+	if e.original != "" {
+		return e.original
+	}
 	return e.AddrPort.String()
+}
+
+func (e *StdNetEndpoint) resolveAddrPort() (netip.AddrPort, error) {
+	if e.original == "" {
+		return e.AddrPort, nil
+	}
+	return resolveHostPort(e.hostname, e.port)
 }
 
 func listenNet(network string, port int) (*net.UDPConn, int, error) {
@@ -339,13 +367,22 @@ func (e ErrUDPGSODisabled) Unwrap() error {
 }
 
 func (s *StdNetBind) Send(bufs [][]byte, endpoint Endpoint) error {
+	nend, ok := endpoint.(*StdNetEndpoint)
+	if !ok {
+		return ErrWrongEndpointType
+	}
+	addrPort, err := nend.resolveAddrPort()
+	if err != nil {
+		return err
+	}
+
 	s.mu.Lock()
 	blackhole := s.blackhole4
 	conn := s.ipv4
 	offload := s.ipv4TxOffload
 	br := batchWriter(s.ipv4PC)
 	is6 := false
-	if endpoint.DstIP().Is6() {
+	if addrPort.Addr().Is6() {
 		blackhole = s.blackhole6
 		conn = s.ipv6
 		br = s.ipv6PC
@@ -366,24 +403,24 @@ func (s *StdNetBind) Send(bufs [][]byte, endpoint Endpoint) error {
 	ua := s.udpAddrPool.Get().(*net.UDPAddr)
 	defer s.udpAddrPool.Put(ua)
 	if is6 {
-		as16 := endpoint.DstIP().As16()
+		as16 := addrPort.Addr().As16()
 		copy(ua.IP, as16[:])
 		ua.IP = ua.IP[:16]
 	} else {
-		as4 := endpoint.DstIP().As4()
+		as4 := addrPort.Addr().As4()
 		copy(ua.IP, as4[:])
 		ua.IP = ua.IP[:4]
 	}
-	ua.Port = int(endpoint.(*StdNetEndpoint).Port())
+	ua.Port = int(addrPort.Port())
 	var (
 		retried bool
-		err     error
+		sendErr error
 	)
 retry:
 	if offload {
-		n := coalesceMessages(ua, endpoint.(*StdNetEndpoint), bufs, *msgs, setGSOSize)
-		err = s.send(conn, br, (*msgs)[:n])
-		if err != nil && offload && errShouldDisableUDPGSO(err) {
+		n := coalesceMessages(ua, nend, bufs, *msgs, setGSOSize)
+		sendErr = s.send(conn, br, (*msgs)[:n])
+		if sendErr != nil && offload && errShouldDisableUDPGSO(sendErr) {
 			offload = false
 			s.mu.Lock()
 			if is6 {
@@ -399,14 +436,14 @@ retry:
 		for i := range bufs {
 			(*msgs)[i].Addr = ua
 			(*msgs)[i].Buffers[0] = bufs[i]
-			setSrcControl(&(*msgs)[i].OOB, endpoint.(*StdNetEndpoint))
+			setSrcControl(&(*msgs)[i].OOB, nend)
 		}
-		err = s.send(conn, br, (*msgs)[:len(bufs)])
+		sendErr = s.send(conn, br, (*msgs)[:len(bufs)])
 	}
 	if retried {
-		return ErrUDPGSODisabled{onLaddr: conn.LocalAddr().String(), RetryErr: err}
+		return ErrUDPGSODisabled{onLaddr: conn.LocalAddr().String(), RetryErr: sendErr}
 	}
-	return err
+	return sendErr
 }
 
 func (s *StdNetBind) send(conn *net.UDPConn, pc batchWriter, msgs []ipv6.Message) error {

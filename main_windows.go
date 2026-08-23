@@ -98,6 +98,25 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	}
 	logs.Notice("接口 %s: 设备启动成功", interfaceName)
 
+	if len(cfg.Addresses) > 0 {
+		logs.Notice("接口 %s: 开始应用接口地址", interfaceName)
+		addressWarnings := applyInterfaceAddresses(interfaceName, cfg.Addresses)
+		if len(addressWarnings) == 0 {
+			logs.Notice("接口 %s: 接口地址应用完成", interfaceName)
+		} else {
+			for _, warning := range addressWarnings {
+				logs.Error(warning)
+			}
+		}
+	}
+
+	logs.Notice("接口 %s: 开始关闭 IPv6 绑定", interfaceName)
+	if err := disableInterfaceIPv6(interfaceName); err != nil {
+		logs.Error("接口 %s: 关闭 IPv6 绑定失败: %v", interfaceName, err)
+	} else {
+		logs.Notice("接口 %s: IPv6 绑定已关闭", interfaceName)
+	}
+
 	uapi, err := ipc.UAPIListen(interfaceName)
 	if err != nil {
 		dev.Close()
@@ -144,14 +163,13 @@ func main() {
 			fmt.Fprintln(os.Stderr, "错误: 使用配置文件模式时不应再传接口名称")
 			os.Exit(ExitSetupFailed)
 		}
-		var err error
-		configs, err = loadTunnelConfigs(confile)
-		if err != nil {
-			logs.Error("加载配置文件失败: %v", err)
-			os.Exit(ExitSetupFailed)
-		}
+		var warnings []string
+		configs, warnings = loadTunnelConfigs(confile)
 		logs.Notice("配置来源: %s", confile)
 		logs.Notice("本次共识别到 %d 个接口配置", len(configs))
+		for _, warning := range warnings {
+			logs.Error("配置告警: %s", warning)
+		}
 		for _, cfg := range configs {
 			logs.Notice("配置摘要: %s", describeTunnelConfig(cfg))
 		}
@@ -173,6 +191,7 @@ func main() {
 	}
 
 	running := make([]*runningInterface, 0, len(configs))
+	var networkMonitor *windowsNetworkMonitor
 	type interfaceError struct {
 		name string
 		err  error
@@ -184,12 +203,8 @@ func main() {
 	for _, cfg := range configs {
 		ri, err := startConfiguredInterface(cfg)
 		if err != nil {
-			for _, started := range running {
-				started.uapi.Close()
-				started.device.Close()
-			}
 			logs.Error("启动接口 %s 失败: %v", cfg.InterfaceName, err)
-			os.Exit(ExitSetupFailed)
+			continue
 		}
 		running = append(running, ri)
 		go func(name string, listener net.Listener, dev *device.Device) {
@@ -209,6 +224,27 @@ func main() {
 		logs.Notice("接口 %s 已启动", ri.name)
 	}
 
+	if len(running) == 0 {
+		logs.Notice("当前没有成功启动的接口，进程将保持运行并等待终止信号")
+	} else {
+		var err error
+		networkMonitor, err = startWindowsNetworkMonitor(func() {
+			logs.Notice("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
+			for _, ri := range running {
+				if err := ri.device.HandleNetworkChange(); err != nil {
+					logs.Error("接口 %s: 网络变化恢复失败: %v", ri.name, err)
+					continue
+				}
+				logs.Notice("接口 %s: 网络变化恢复完成", ri.name)
+			}
+		})
+		if err != nil {
+			logs.Error("启动 Windows 网络变化监视失败: %v", err)
+		} else {
+			logs.Notice("Windows 网络变化监视已启动")
+		}
+	}
+
 	signal.Notify(term, os.Interrupt)
 	signal.Notify(term, os.Kill)
 	signal.Notify(term, windows.SIGTERM)
@@ -224,6 +260,10 @@ func main() {
 	}
 
 	logs.Notice("开始关闭，原因: %s", shutdownReason)
+	if networkMonitor != nil {
+		networkMonitor.Close()
+		logs.Notice("Windows 网络变化监视已关闭")
+	}
 	for _, ri := range running {
 		if ri.uapi != nil {
 			ri.uapi.Close()

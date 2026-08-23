@@ -4,3 +4,6 @@ wireguard
 
 conf/
 .cache
+.gocache/
+.gotmp/
+.gomodcache/

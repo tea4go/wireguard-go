@@ -97,20 +97,19 @@ var (
 )
 
 func (*WinRingBind) ParseEndpoint(s string) (Endpoint, error) {
-	host, port, err := net.SplitHostPort(s)
+	hostPort, err := parseHostPortEndpoint(s)
 	if err != nil {
 		return nil, err
 	}
-	host16, err := windows.UTF16PtrFromString(host)
+	host16, err := windows.UTF16PtrFromString(hostPort.host)
 	if err != nil {
 		return nil, err
 	}
-	port16, err := windows.UTF16PtrFromString(port)
+	port16, err := windows.UTF16PtrFromString(strconv.FormatUint(uint64(hostPort.port), 10))
 	if err != nil {
 		return nil, err
 	}
 	hints := windows.AddrinfoW{
-		Flags:    windows.AI_NUMERICHOST,
 		Family:   windows.AF_UNSPEC,
 		Socktype: windows.SOCK_DGRAM,
 		Protocol: windows.IPPROTO_UDP,
@@ -118,11 +117,11 @@ func (*WinRingBind) ParseEndpoint(s string) (Endpoint, error) {
 	var addrinfo *windows.AddrinfoW
 	err = windows.GetAddrInfoW(host16, port16, &hints, &addrinfo)
 	if err != nil {
-		return nil, err
+		return hostPort, nil
 	}
 	defer windows.FreeAddrInfoW(addrinfo)
 	if (addrinfo.Family != windows.AF_INET && addrinfo.Family != windows.AF_INET6) || addrinfo.Addrlen > unsafe.Sizeof(WinRingEndpoint{}) {
-		return nil, windows.ERROR_INVALID_ADDRESS
+		return hostPort, nil
 	}
 	var dst [unsafe.Sizeof(WinRingEndpoint{})]byte
 	copy(dst[:], unsafe.Slice((*byte)(unsafe.Pointer(addrinfo.Addr)), addrinfo.Addrlen))
@@ -487,8 +486,17 @@ func (bind *afWinRingBind) Send(buf []byte, nend *WinRingEndpoint, isOpen *atomi
 }
 
 func (bind *WinRingBind) Send(bufs [][]byte, endpoint Endpoint) error {
-	nend, ok := endpoint.(*WinRingEndpoint)
-	if !ok {
+	var nend *WinRingEndpoint
+	switch ep := endpoint.(type) {
+	case *WinRingEndpoint:
+		nend = ep
+	case *hostPortEndpoint:
+		addrPort, err := ep.resolveAddrPort()
+		if err != nil {
+			return err
+		}
+		nend = newWinRingEndpointFromAddrPort(addrPort)
+	default:
 		return ErrWrongEndpointType
 	}
 	bind.mu.RLock()
@@ -512,6 +520,27 @@ func (bind *WinRingBind) Send(bufs [][]byte, endpoint Endpoint) error {
 		}
 	}
 	return nil
+}
+
+func newWinRingEndpointFromAddrPort(addrPort netip.AddrPort) *WinRingEndpoint {
+	endpoint := &WinRingEndpoint{}
+	port := addrPort.Port()
+	binary.BigEndian.PutUint16(endpoint.data[0:2], port)
+	if addrPort.Addr().Is4() {
+		endpoint.family = windows.AF_INET
+		as4 := addrPort.Addr().As4()
+		copy(endpoint.data[2:6], as4[:])
+		return endpoint
+	}
+	endpoint.family = windows.AF_INET6
+	as16 := addrPort.Addr().As16()
+	copy(endpoint.data[6:22], as16[:])
+	if zone := addrPort.Addr().Zone(); zone != "" {
+		if scope, err := strconv.ParseUint(zone, 10, 32); err == nil {
+			*(*uint32)(unsafe.Pointer(&endpoint.data[22])) = uint32(scope)
+		}
+	}
+	return endpoint
 }
 
 func (s *StdNetBind) BindSocketToInterface4(interfaceIndex uint32, blackhole bool) error {

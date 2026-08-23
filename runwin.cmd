@@ -1,44 +1,57 @@
 @echo off
-@REM chcp 65001
+setlocal
 cls
 
-set "hour=%time:~0,2%"
-if "%hour:~0,1%" == " " set "hour=0%hour:~1,1%"
+set "SCRIPT_DIR=%~dp0"
+set "GOCACHE=%SCRIPT_DIR%.gocache"
+set "GOTMPDIR=%SCRIPT_DIR%.gotmp"
+set "RUN_EXE=%SCRIPT_DIR%wireguard.exe"
+set "RUN_CONFIG="
 
-set "year=%date:~0,4%"
-set "month=%date:~5,2%"
-set "day=%date:~8,2%"
+if not exist "%GOCACHE%" mkdir "%GOCACHE%" >nul 2>nul
+if not exist "%GOTMPDIR%" mkdir "%GOTMPDIR%" >nul 2>nul
 
-set "minute=%time:~3,2%"
-set "second=%time:~6,2%"
+for %%F in ("%SCRIPT_DIR%conf\*.zip") do (
+    if not defined RUN_CONFIG set "RUN_CONFIG=%%~fF"
+)
 
-set "date_text=%year%-%month%-%day%(%hour%:%minute%:%second%)"
-set "date_version=%year%%month%%day%_%hour%%minute%%second%"
-
-set BuildTime=%date_text%
-rem 检查是否传递了 -release 参数, 设置为true表示测试版，false表示正式版
-set IsBeta=true
-
-echo BuildTime:%BuildTime%
-
-attrib -H *.old                >nul 2>nul
-del *.exe.old                  >nul 2>nul
-
-:: 清理残留的编译进程
-taskkill /f /im compile.exe    >nul 2>nul
-taskkill /f /im asm.exe        >nul 2>nul
-taskkill /f /im link.exe       >nul 2>nul
-taskkill /f /im git.exe        >nul 2>nul
-taskkill /f /im go.exe         >nul 2>nul
-taskkill /f /im wireguard.exe  >nul 2>nul
-go build -ldflags "-X main.IsBeta=%IsBeta% -X main.BuildTime=%BuildTime%"
-
-if errorlevel 1 (
-    echo 编译失败，请检查错误信息。
+if not defined RUN_CONFIG (
+    echo No zip config found under "%SCRIPT_DIR%conf".
     exit /b 1
 )
 
-copy /y wireguard.exe  C:\DevDisk\Other\Alias >nul 2>nul
+set "BuildTime=%date%_%time%"
+set "BuildTime=%BuildTime: =0%"
+set "IsBeta=true"
+
+echo BuildTime:%BuildTime%
+
+attrib -H *.old               >nul 2>nul
+del *.exe.old                 >nul 2>nul
+
+taskkill /f /im compile.exe   >nul 2>nul
+taskkill /f /im asm.exe       >nul 2>nul
+taskkill /f /im link.exe      >nul 2>nul
+taskkill /f /im git.exe       >nul 2>nul
+taskkill /f /im go.exe        >nul 2>nul
+taskkill /f /im wireguard.exe >nul 2>nul
+
+go build -buildvcs=false -ldflags "-X main.IsBeta=%IsBeta% -X main.BuildTime=%BuildTime%"
+if errorlevel 1 (
+    echo Build failed.
+    exit /b 1
+)
+
+copy /y wireguard.exe C:\DevDisk\Other\Alias >nul 2>nul
 echo =======================================================
 
-wireguard wgtun1
+net session >nul 2>&1
+if errorlevel 1 goto run_elevated
+
+"%RUN_EXE%" -l=7 --confile "%RUN_CONFIG%"
+goto :eof
+
+:run_elevated
+echo Requesting administrator rights to start wireguard.exe ...
+powershell -NoProfile -Command "$exe = '%RUN_EXE%'; $cfg = '%RUN_CONFIG%'; $p = Start-Process -FilePath $exe -ArgumentList '--confile', $cfg -Verb RunAs -Wait -PassThru; exit $p.ExitCode"
+exit /b %errorlevel%

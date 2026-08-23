@@ -42,9 +42,12 @@ func TestParseTunnelConfigFromConf(t *testing.T) {
 		"",
 	}, "\n")
 
-	cfg, err := parseTunnelConfig([]byte(conf), "test.conf")
-	if err != nil {
-		t.Fatalf("parseTunnelConfig returned error: %v", err)
+	cfg, warnings := parseTunnelConfig([]byte(conf), "test.conf")
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
+	}
+	if cfg == nil {
+		t.Fatal("expected config, got nil")
 	}
 
 	if cfg.MTU != 1420 {
@@ -59,7 +62,11 @@ func TestParseTunnelConfigFromConf(t *testing.T) {
 		t.Fatalf("expected interface name %q, got %q", want, got)
 	}
 
-	if got, want := cfg.IgnoredFields, []string{"Interface.Address"}; !reflect.DeepEqual(got, want) {
+	if got, want := cfg.Addresses, []string{"192.168.189.160/24"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected addresses %v, got %v", want, got)
+	}
+
+	if got, want := cfg.IgnoredFields, []string{}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected ignored fields %v, got %v", want, got)
 	}
 
@@ -119,9 +126,9 @@ func TestLoadTunnelConfigsFromZip(t *testing.T) {
 		t.Fatalf("file close: %v", err)
 	}
 
-	cfgs, err := loadTunnelConfigs(zipPath)
-	if err != nil {
-		t.Fatalf("loadTunnelConfigs returned error: %v", err)
+	cfgs, warnings := loadTunnelConfigs(zipPath)
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
 	}
 
 	if got, want := len(cfgs), 2; got != want {
@@ -158,9 +165,9 @@ func TestLoadTunnelConfigsFromConf(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	cfgs, err := loadTunnelConfigs(confPath)
-	if err != nil {
-		t.Fatalf("loadTunnelConfigs returned error: %v", err)
+	cfgs, warnings := loadTunnelConfigs(confPath)
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
 	}
 
 	if got, want := len(cfgs), 1; got != want {
@@ -188,9 +195,12 @@ func TestDescribeTunnelConfig(t *testing.T) {
 		"",
 	}, "\n")
 
-	cfg, err := parseTunnelConfig([]byte(conf), "test.conf")
-	if err != nil {
-		t.Fatalf("parseTunnelConfig returned error: %v", err)
+	cfg, warnings := parseTunnelConfig([]byte(conf), "test.conf")
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
+	}
+	if cfg == nil {
+		t.Fatal("expected config, got nil")
 	}
 
 	summary := describeTunnelConfig(cfg)
@@ -209,8 +219,8 @@ func TestDescribeTunnelConfig(t *testing.T) {
 	if !strings.Contains(summary, "AllowedIPs数=2") {
 		t.Fatalf("summary missing allowed ip count: %q", summary)
 	}
-	if !strings.Contains(summary, "忽略字段=Interface.Address") {
-		t.Fatalf("summary missing ignored fields: %q", summary)
+	if !strings.Contains(summary, "Address=192.168.189.160/24") {
+		t.Fatalf("summary missing addresses: %q", summary)
 	}
 
 	peerSummary := describePeerConfig(cfg.Peers[0])
@@ -225,5 +235,82 @@ func TestDescribeTunnelConfig(t *testing.T) {
 	}
 	if !strings.Contains(peerSummary, "PersistentKeepalive=25") {
 		t.Fatalf("peer summary missing keepalive: %q", peerSummary)
+	}
+}
+
+func TestLoadTunnelConfigsSkipsInvalidZipEntry(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "config.zip")
+
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	zw := zip.NewWriter(f)
+	files := map[string]string{
+		"good.conf": "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x11) + "\n",
+		"bad.conf":  "[Interface]\nPrivateKey = broken\n[Peer]\nPublicKey = bad-key\n",
+	}
+	for name, body := range files {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("Create(%q): %v", name, err)
+		}
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Fatalf("Write(%q): %v", name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip close: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("file close: %v", err)
+	}
+
+	cfgs, warnings := loadTunnelConfigs(zipPath)
+	if got, want := len(cfgs), 1; got != want {
+		t.Fatalf("expected %d usable config, got %d", want, got)
+	}
+	if got, want := cfgs[0].InterfaceName, "good"; got != want {
+		t.Fatalf("expected interface name %q, got %q", want, got)
+	}
+	if len(warnings) == 0 {
+		t.Fatal("expected warnings for invalid zip entry, got none")
+	}
+	if !strings.Contains(strings.Join(warnings, "\n"), "bad.conf") {
+		t.Fatalf("expected warnings to mention bad.conf, got %v", warnings)
+	}
+}
+
+func TestParseTunnelConfigCollectsWarningsInsteadOfFailing(t *testing.T) {
+	conf := strings.Join([]string{
+		"[Interface]",
+		"PrivateKey = broken",
+		"ListenPort = nope",
+		"",
+		"[Peer]",
+		"PublicKey = " + repeatedKeyBase64(0x22),
+		"AllowedIPs = 10.0.0.0/24",
+		"",
+		"[Peer]",
+		"PublicKey = broken",
+		"AllowedIPs = not-a-cidr",
+		"PersistentKeepalive = bad",
+		"",
+	}, "\n")
+
+	cfg, warnings := parseTunnelConfig([]byte(conf), "bad.conf")
+	if cfg == nil {
+		t.Fatal("expected partial config, got nil")
+	}
+	if len(warnings) == 0 {
+		t.Fatal("expected warnings, got none")
+	}
+	if got, want := len(cfg.Peers), 1; got != want {
+		t.Fatalf("expected %d usable peer, got %d", want, got)
+	}
+	if !strings.Contains(cfg.UAPI, "public_key="+repeatedKeyHex(0x22)) {
+		t.Fatalf("expected valid peer to remain in UAPI, got %q", cfg.UAPI)
 	}
 }

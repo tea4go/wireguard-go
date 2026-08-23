@@ -20,6 +20,7 @@ type tunnelConfig struct {
 	UAPI          string
 	MTU           int
 	ListenPort    string
+	Addresses     []string
 	Peers         []peerConfig
 	IgnoredFields []string
 }
@@ -29,6 +30,7 @@ type interfaceConfig struct {
 	listenPort string
 	fwmark     string
 	mtu        int
+	addresses  []string
 }
 
 type peerConfig struct {
@@ -40,23 +42,26 @@ type peerConfig struct {
 	hasPersistentKeepaliveLine bool
 }
 
-func loadTunnelConfigs(path string) ([]*tunnelConfig, error) {
+func loadTunnelConfigs(path string) ([]*tunnelConfig, []string) {
+	var warnings []string
+
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".conf":
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("读取配置文件失败: %w", err)
+			return nil, []string{fmt.Sprintf("%s: 读取配置文件失败: %v", path, err)}
 		}
-		cfg, err := parseTunnelConfig(data, path)
-		if err != nil {
-			return nil, err
+		cfg, cfgWarnings := parseTunnelConfig(data, path)
+		warnings = append(warnings, cfgWarnings...)
+		if cfg == nil {
+			return nil, warnings
 		}
-		return []*tunnelConfig{cfg}, nil
+		return []*tunnelConfig{cfg}, warnings
 
 	case ".zip":
 		reader, err := zip.OpenReader(path)
 		if err != nil {
-			return nil, fmt.Errorf("打开配置压缩包失败: %w", err)
+			return nil, []string{fmt.Sprintf("%s: 打开配置压缩包失败: %v", path, err)}
 		}
 		defer reader.Close()
 
@@ -70,8 +75,9 @@ func loadTunnelConfigs(path string) ([]*tunnelConfig, error) {
 			}
 		}
 		if len(entries) == 0 {
-			return nil, fmt.Errorf("压缩包中未找到 .conf 配置文件")
+			return nil, []string{fmt.Sprintf("%s: 压缩包中未找到 .conf 配置文件", path)}
 		}
+
 		sort.Slice(entries, func(i, j int) bool {
 			return strings.ToLower(entries[i].Name) < strings.ToLower(entries[j].Name)
 		})
@@ -80,37 +86,42 @@ func loadTunnelConfigs(path string) ([]*tunnelConfig, error) {
 		for _, entry := range entries {
 			rc, err := entry.Open()
 			if err != nil {
-				return nil, fmt.Errorf("打开压缩包内配置文件失败: %w", err)
+				warnings = append(warnings, fmt.Sprintf("%s (%s): 打开压缩包内配置文件失败: %v", path, entry.Name, err))
+				continue
 			}
 
 			data, readErr := io.ReadAll(rc)
 			closeErr := rc.Close()
 			if readErr != nil {
-				return nil, fmt.Errorf("读取压缩包内配置文件失败: %w", readErr)
+				warnings = append(warnings, fmt.Sprintf("%s (%s): 读取压缩包内配置文件失败: %v", path, entry.Name, readErr))
+				continue
 			}
 			if closeErr != nil {
-				return nil, fmt.Errorf("关闭压缩包内配置文件失败: %w", closeErr)
+				warnings = append(warnings, fmt.Sprintf("%s (%s): 关闭压缩包内配置文件失败: %v", path, entry.Name, closeErr))
+				continue
 			}
 
-			cfg, err := parseTunnelConfig(data, fmt.Sprintf("%s (%s)", path, entry.Name))
-			if err != nil {
-				return nil, err
+			cfg, cfgWarnings := parseTunnelConfig(data, fmt.Sprintf("%s (%s)", path, entry.Name))
+			warnings = append(warnings, cfgWarnings...)
+			if cfg == nil {
+				continue
 			}
 			cfg.InterfaceName = interfaceNameFromPath(entry.Name)
 			configs = append(configs, cfg)
 		}
-		return configs, nil
+		return configs, warnings
 
 	default:
-		return nil, fmt.Errorf("仅支持 .conf 或 .zip 配置文件: %s", path)
+		return nil, []string{fmt.Sprintf("仅支持 .conf 或 .zip 配置文件: %s", path)}
 	}
 }
 
-func parseTunnelConfig(data []byte, source string) (*tunnelConfig, error) {
+func parseTunnelConfig(data []byte, source string) (*tunnelConfig, []string) {
 	var iface interfaceConfig
 	var peers []peerConfig
 	var currentPeer *peerConfig
 	ignored := make(map[string]struct{})
+	var warnings []string
 	section := ""
 
 	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
@@ -129,41 +140,47 @@ func parseTunnelConfig(data []byte, source string) (*tunnelConfig, error) {
 				peers = append(peers, peerConfig{})
 				currentPeer = &peers[len(peers)-1]
 			default:
-				return nil, fmt.Errorf("%s:%d: 不支持的配置段 %q", source, i+1, line)
+				warnings = append(warnings, fmt.Sprintf("%s:%d: 不支持的配置段 %q，已忽略", source, i+1, line))
+				section = "#ignored"
 			}
+			continue
+		}
+
+		if section == "#ignored" {
 			continue
 		}
 
 		key, value, ok := strings.Cut(line, "=")
 		if !ok {
-			return nil, fmt.Errorf("%s:%d: 配置行缺少 '=': %q", source, i+1, rawLine)
+			warnings = append(warnings, fmt.Sprintf("%s:%d: 配置行缺少 '='，已忽略: %q", source, i+1, rawLine))
+			continue
 		}
+
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
 
 		switch section {
 		case "interface":
 			if err := parseInterfaceLine(&iface, ignored, key, value, source, i+1); err != nil {
-				return nil, err
+				warnings = append(warnings, err.Error())
 			}
 
 		case "peer":
 			if currentPeer == nil {
-				return nil, fmt.Errorf("%s:%d: [Peer] 配置状态异常", source, i+1)
+				warnings = append(warnings, fmt.Sprintf("%s:%d: [Peer] 配置状态异常，已忽略", source, i+1))
+				continue
 			}
 			if err := parsePeerLine(currentPeer, ignored, key, value, source, i+1); err != nil {
-				return nil, err
+				warnings = append(warnings, err.Error())
 			}
 
 		default:
-			return nil, fmt.Errorf("%s:%d: 配置项出现在段外: %q", source, i+1, rawLine)
+			warnings = append(warnings, fmt.Sprintf("%s:%d: 配置项出现在段外，已忽略: %q", source, i+1, rawLine))
 		}
 	}
 
-	uapi, err := buildUAPIConfig(iface, peers, source)
-	if err != nil {
-		return nil, err
-	}
+	uapi, usablePeers, buildWarnings := buildUAPIConfig(iface, peers, source)
+	warnings = append(warnings, buildWarnings...)
 
 	ignoredFields := make([]string, 0, len(ignored))
 	for field := range ignored {
@@ -171,15 +188,21 @@ func parseTunnelConfig(data []byte, source string) (*tunnelConfig, error) {
 	}
 	sort.Strings(ignoredFields)
 
+	if iface.privateKey == "" && iface.listenPort == "" && iface.fwmark == "" && iface.mtu == 0 && len(iface.addresses) == 0 && len(usablePeers) == 0 {
+		warnings = append(warnings, fmt.Sprintf("%s: 未提取到可用配置，已跳过", source))
+		return nil, warnings
+	}
+
 	return &tunnelConfig{
 		Source:        source,
 		InterfaceName: interfaceNameFromPath(source),
 		UAPI:          uapi,
 		MTU:           iface.mtu,
 		ListenPort:    iface.listenPort,
-		Peers:         append([]peerConfig(nil), peers...),
+		Addresses:     append([]string(nil), iface.addresses...),
+		Peers:         append([]peerConfig(nil), usablePeers...),
 		IgnoredFields: ignoredFields,
-	}, nil
+	}, warnings
 }
 
 func interfaceNameFromPath(path string) string {
@@ -205,6 +228,9 @@ func describeTunnelConfig(cfg *tunnelConfig) string {
 	}
 	if cfg.ListenPort != "" {
 		parts = append(parts, "ListenPort="+cfg.ListenPort)
+	}
+	if len(cfg.Addresses) > 0 {
+		parts = append(parts, "Address="+strings.Join(cfg.Addresses, ","))
 	}
 	if len(cfg.IgnoredFields) > 0 {
 		parts = append(parts, "忽略字段="+strings.Join(cfg.IgnoredFields, ","))
@@ -263,7 +289,26 @@ func parseInterfaceLine(iface *interfaceConfig, ignored map[string]struct{}, key
 		}
 		iface.mtu = mtu
 
-	case "address", "dns", "table", "preup", "postup", "predown", "postdown", "saveconfig":
+	case "address":
+		parts := strings.Split(value, ",")
+		parsed := make([]string, 0, len(parts))
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			prefix, err := netip.ParsePrefix(part)
+			if err != nil {
+				return fmt.Errorf("%s:%d: 解析 Interface.Address 失败: %w", source, lineNo, err)
+			}
+			parsed = append(parsed, prefix.String())
+		}
+		if len(parsed) == 0 {
+			return fmt.Errorf("%s:%d: Interface.Address 不能为空", source, lineNo)
+		}
+		iface.addresses = append(iface.addresses, parsed...)
+
+	case "dns", "table", "preup", "postup", "predown", "postdown", "saveconfig":
 		ignored["Interface."+canonicalConfigKey(key)] = struct{}{}
 
 	default:
@@ -290,7 +335,7 @@ func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, so
 
 	case "allowedips":
 		parts := strings.Split(value, ",")
-		peer.allowedIPs = peer.allowedIPs[:0]
+		parsed := make([]string, 0, len(parts))
 		for _, part := range parts {
 			part = strings.TrimSpace(part)
 			if part == "" {
@@ -299,11 +344,12 @@ func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, so
 			if _, err := netip.ParsePrefix(part); err != nil {
 				return fmt.Errorf("%s:%d: 解析 Peer.AllowedIPs 失败: %w", source, lineNo, err)
 			}
-			peer.allowedIPs = append(peer.allowedIPs, part)
+			parsed = append(parsed, part)
 		}
-		if len(peer.allowedIPs) == 0 {
+		if len(parsed) == 0 {
 			return fmt.Errorf("%s:%d: Peer.AllowedIPs 不能为空", source, lineNo)
 		}
+		peer.allowedIPs = parsed
 
 	case "endpoint":
 		if value == "" {
@@ -312,8 +358,8 @@ func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, so
 		peer.endpoint = value
 
 	case "persistentkeepalive", "persistentkeepaliveinterval":
-		peer.hasPersistentKeepaliveLine = true
 		if strings.EqualFold(value, "off") {
+			peer.hasPersistentKeepaliveLine = true
 			peer.persistentKeepalive = "0"
 			return nil
 		}
@@ -321,6 +367,7 @@ func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, so
 		if err != nil {
 			return fmt.Errorf("%s:%d: 解析 Peer.PersistentKeepalive 失败: %w", source, lineNo, err)
 		}
+		peer.hasPersistentKeepaliveLine = true
 		peer.persistentKeepalive = strconv.FormatUint(secs, 10)
 
 	default:
@@ -329,8 +376,10 @@ func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, so
 	return nil
 }
 
-func buildUAPIConfig(iface interfaceConfig, peers []peerConfig, source string) (string, error) {
+func buildUAPIConfig(iface interfaceConfig, peers []peerConfig, source string) (string, []peerConfig, []string) {
 	lines := make([]string, 0, 4+len(peers)*8)
+	validPeers := make([]peerConfig, 0, len(peers))
+	var warnings []string
 
 	if iface.privateKey != "" {
 		lines = append(lines, "private_key="+iface.privateKey)
@@ -345,7 +394,8 @@ func buildUAPIConfig(iface interfaceConfig, peers []peerConfig, source string) (
 	lines = append(lines, "replace_peers=true")
 	for i, peer := range peers {
 		if peer.publicKey == "" {
-			return "", fmt.Errorf("%s: 第 %d 个 Peer 缺少 PublicKey", source, i+1)
+			warnings = append(warnings, fmt.Sprintf("%s: 第 %d 个 Peer 缺少有效 PublicKey，已跳过", source, i+1))
+			continue
 		}
 		lines = append(lines, "public_key="+peer.publicKey)
 		if peer.presharedKey != "" {
@@ -362,9 +412,10 @@ func buildUAPIConfig(iface interfaceConfig, peers []peerConfig, source string) (
 		if peer.hasPersistentKeepaliveLine {
 			lines = append(lines, "persistent_keepalive_interval="+peer.persistentKeepalive)
 		}
+		validPeers = append(validPeers, peer)
 	}
 
-	return strings.Join(lines, "\n") + "\n", nil
+	return strings.Join(lines, "\n") + "\n", validPeers, warnings
 }
 
 func decodeBase64KeyToHex(value string) (string, error) {
