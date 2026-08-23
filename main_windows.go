@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"golang.org/x/sys/windows"
 
@@ -24,19 +25,29 @@ const (
 	ExitSetupFailed  = 1
 )
 
+func printUsage() {
+	fmt.Fprintf(os.Stderr, "用法: %s <接口名称>\n", filepath.Base(os.Args[0]))
+}
+
+// exitWithError 打印错误信息后退出。
+func exitWithError(logger *device.Logger, format string, args ...any) {
+	logger.Errorf(format, args...)
+	os.Exit(ExitSetupFailed)
+}
+
 func main() {
 	if len(os.Args) != 2 {
+		printUsage()
+		fmt.Fprintln(os.Stderr, "错误: 缺少接口名称参数")
 		os.Exit(ExitSetupFailed)
 	}
 	interfaceName := os.Args[1]
-
-	fmt.Fprintln(os.Stderr, "Warning: this is a test program for Windows, mainly used for debugging this Go package. For a real WireGuard for Windows client, the repo you want is <https://git.zx2c4.com/wireguard-windows/>, which includes this code as a module.")
 
 	logger := device.NewLogger(
 		device.LogLevelVerbose,
 		fmt.Sprintf("(%s) ", interfaceName),
 	)
-	logger.Verbosef("Starting wireguard-go version %s", Version)
+	logger.Verbosef("正在启动 wireguard-go v%s", Version)
 
 	tun, err := tun.CreateTUN(interfaceName, 0)
 	if err == nil {
@@ -45,22 +56,19 @@ func main() {
 			interfaceName = realInterfaceName
 		}
 	} else {
-		logger.Errorf("Failed to create TUN device: %v", err)
-		os.Exit(ExitSetupFailed)
+		exitWithError(logger, "创建 TUN 设备失败: %v", err)
 	}
 
 	device := device.NewDevice(tun, conn.NewDefaultBind(), logger)
 	err = device.Up()
 	if err != nil {
-		logger.Errorf("Failed to bring up device: %v", err)
-		os.Exit(ExitSetupFailed)
+		exitWithError(logger, "启动设备失败: %v", err)
 	}
-	logger.Verbosef("Device started")
+	logger.Verbosef("设备已启动")
 
 	uapi, err := ipc.UAPIListen(interfaceName)
 	if err != nil {
-		logger.Errorf("Failed to listen on uapi socket: %v", err)
-		os.Exit(ExitSetupFailed)
+		exitWithError(logger, "UAPI 监听失败: %v", err)
 	}
 
 	errs := make(chan error)
@@ -76,9 +84,9 @@ func main() {
 			go device.IpcHandle(conn)
 		}
 	}()
-	logger.Verbosef("UAPI listener started")
+	logger.Verbosef("UAPI 监听已启动")
 
-	// wait for program to terminate
+	// 等待程序终止
 
 	signal.Notify(term, os.Interrupt)
 	signal.Notify(term, os.Kill)
@@ -90,10 +98,10 @@ func main() {
 	case <-device.Wait():
 	}
 
-	// clean up
+	// 清理
 
 	uapi.Close()
 	device.Close()
 
-	logger.Verbosef("Shutting down")
+	logger.Verbosef("正在关闭")
 }
