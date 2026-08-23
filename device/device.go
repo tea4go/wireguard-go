@@ -141,7 +141,6 @@ func (device *Device) changeState(want deviceState) (err error) {
 	defer device.state.Unlock()
 	old := device.deviceState()
 	if old == deviceStateClosed {
-		// once closed, always closed
 		device.log.Verbosef("接口已关闭，忽略请求的状态 %s", want)
 		return nil
 	}
@@ -154,7 +153,7 @@ func (device *Device) changeState(want deviceState) (err error) {
 		if err == nil {
 			break
 		}
-		fallthrough // up failed; bring the device all the way back down
+		fallthrough
 	case deviceStateDown:
 		device.state.state.Store(uint32(deviceStateDown))
 		errDown := device.downLocked()
@@ -162,7 +161,7 @@ func (device *Device) changeState(want deviceState) (err error) {
 			err = errDown
 		}
 	}
-	device.log.Verbosef("接口原状态为 %s，请求状态为 %s，当前状态为 %s", old, want, device.deviceState())
+	device.log.Notice("接口原状态为 %s，请求状态为 %s，当前状态为 %s", old, want, device.deviceState())
 	return
 }
 
@@ -173,7 +172,6 @@ func (device *Device) upLocked() error {
 		device.log.Errorf("无法更新绑定, %v", err)
 		return err
 	}
-
 	// The IPC set operation waits for peers to be created before calling Start() on them,
 	// so if there's a concurrent IPC set request happening, we should wait for it to complete.
 	device.ipcMutex.Lock()
@@ -290,7 +288,7 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device.tun.device = tunDevice
 	mtu, err := device.tun.device.MTU()
 	if err != nil {
-		device.log.Errorf("无法确定 MTU，使用默认值, %v", err)
+		device.log.Warningf("无法确定 MTU，使用默认值, %v", err)
 		mtu = DefaultMTU
 	}
 	device.tun.mtu.Store(int32(mtu))
