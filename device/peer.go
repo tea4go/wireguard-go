@@ -156,7 +156,7 @@ func (peer *Peer) String() string {
 	b64 := func(input byte) byte {
 		return input + 'A' + byte(((25-int(input))>>8)&6) - byte(((51-int(input))>>8)&75) - byte(((61-int(input))>>8)&15) + byte(((62-int(input))>>8)&3)
 	}
-	b := []byte("peer(____…____)")
+	b := []byte("Peer(____…____)")
 	const first = len("peer(")
 	const second = len("peer(____…")
 	b[first+0] = b64((src[0] >> 2) & 63)

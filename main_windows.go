@@ -151,6 +151,7 @@ func main() {
 	// 标准程序块
 	network.SetAppVersion(appName, appVer, IsBeta, BuildTime) //设置应用版本号，便于自动更新
 	logsFileName := filepathJoin(os.TempDir(), "ulog_"+log_name+".txt")
+	logs.SetLogFuncCallDepth(5)
 	logs.SetLogger("file", `{"filename":"`+logsFileName+`", "perm": "0666","level":5}`)
 	logs.StartLogger()
 	network.StartSelfUpdate("http://wc192.yj2025.icu:8118", "http://nj.yj2025.icu:23432", "http://wc8.yj2025.icu:8118", "http://wc47.yj2025.icu:23431")

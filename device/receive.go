@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tea4go/gh/utils"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
@@ -112,7 +113,7 @@ func (device *Device) RoutineReceiveIncoming(maxBatchSize int, recv conn.Receive
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
-			device.log.Verbosef("接收 %s 数据包失败, %v", recvName, err)
+			device.log.Verbosef("接收 %s 数据包失败, %v", recvName, utils.GetNetError(err))
 			if neterr, ok := err.(net.Error); ok && !neterr.Temporary() {
 				return
 			}
@@ -270,10 +271,10 @@ func (device *Device) RoutineDecryption(id int) {
  */
 func (device *Device) RoutineHandshake(id int) {
 	defer func() {
-		device.log.Verbosef("例程：握手工作线程 %d - 已停止", id)
+		device.log.Verbosef("例程：握手工作线程 %3d - 已停止", id)
 		device.queue.encryption.wg.Done()
 	}()
-	device.log.Verbosef("例程：握手工作线程 %d - 已启动", id)
+	device.log.Verbosef("例程：握手工作线程 %3d - 已启动", id)
 
 	for elem := range device.queue.handshake.c {
 
