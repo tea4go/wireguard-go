@@ -6,37 +6,43 @@
 package device
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"time"
 )
 
-// A Logger provides logging for a Device.
-// The functions are Printf-style functions.
-// They must be safe for concurrent use.
-// They do not require a trailing newline in the format.
-// If nil, that level of logging will be silent.
+// Logger 为 Device 提供日志记录能力。
+// 其函数成员均为 Printf 风格函数。
+// 它们必须支持并发安全使用。
+// 格式字符串末尾无需附带换行符。
+// 若为 nil，对应级别的日志将被静默丢弃。
 type Logger struct {
 	Verbosef func(format string, args ...any)
 	Errorf   func(format string, args ...any)
 }
 
-// Log levels for use with NewLogger.
+// 供 NewLogger 使用的日志级别。
 const (
 	LogLevelSilent = iota
 	LogLevelError
 	LogLevelVerbose
 )
 
-// Function for use in Logger for discarding logged lines.
+// DiscardLogf 用于 Logger 中丢弃日志行的空操作函数。
 func DiscardLogf(format string, args ...any) {}
 
-// NewLogger constructs a Logger that writes to stdout.
-// It logs at the specified log level and above.
-// It decorates log lines with the log level, date, time, and prepend.
+// NewLogger 构造一个将日志写入标准输出（stdout）的 Logger。
+// 仅记录指定级别及以上的日志。
+// 每条日志会附加日志级别、日期（yyyy-mm-dd 格式）、时间以及 prepend 前缀。
 func NewLogger(level int, prepend string) *Logger {
 	logger := &Logger{DiscardLogf, DiscardLogf}
 	logf := func(prefix string) func(string, ...any) {
-		return log.New(os.Stdout, prefix+": "+prepend, log.Ldate|log.Ltime).Printf
+		l := log.New(os.Stdout, prefix+": "+prepend, 0)
+		return func(format string, args ...any) {
+			// 日期采用 yyyy-mm-dd 格式（Go 布局参考时间为 2006-01-02）
+			l.Printf("%s %s", time.Now().Format("2006-01-02 15:04:05"), fmt.Sprintf(format, args...))
+		}
 	}
 	if level >= LogLevelVerbose {
 		logger.Verbosef = logf("DEBUG")
