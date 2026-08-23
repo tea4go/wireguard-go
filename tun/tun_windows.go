@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +19,39 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wintun"
 )
+
+func init() {
+	_ = preloadWintunDLL()
+}
+
+func archDir() string {
+	switch runtime.GOARCH {
+	case "386":
+		return "x86"
+	case "amd64":
+		return "amd64"
+	case "arm":
+		return "arm"
+	case "arm64":
+		return "arm64"
+	default:
+		return runtime.GOARCH
+	}
+}
+
+func preloadWintunDLL() error {
+	exePath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	exeDir := filepath.Dir(exePath)
+	dllPath := filepath.Join(exeDir, "lib", archDir(), "wintun.dll")
+	_, err = windows.LoadLibraryEx(dllPath, 0, windows.LOAD_WITH_ALTERED_SEARCH_PATH)
+	if err != nil {
+		return fmt.Errorf("加载 wintun.dll 失败, %v (%s)", err, dllPath)
+	}
+	return nil
+}
 
 // 以下常量用于 Windows 平台的收发速率调节与自旋等待策略。
 // wireguard-go 通过"用户态短暂自旋 + 必要时内核事件等待"的方式在高吞吐场景下减少 syscall 开销。
@@ -68,7 +103,14 @@ var (
 func CheckWintunReady() error {
 	dllVersion := wintun.Version()
 	if dllVersion == "unknown" {
-		return fmt.Errorf("wintun.dll 未找到或无法加载，请确保 wintun.dll 在当前目录或已安装到系统")
+		loadErr := preloadWintunDLL()
+		if loadErr != nil {
+			return loadErr
+		}
+		dllVersion = wintun.Version()
+		if dllVersion == "unknown" {
+			return fmt.Errorf("wintun.dll 未找到或无法加载，请确保 lib\\%s\\wintun.dll 存在于可执行程序所在目录", archDir())
+		}
 	}
 	driverVersion, err := wintun.RunningVersion()
 	if err != nil {

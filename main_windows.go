@@ -34,15 +34,9 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "用法: %s <接口名称>\n", filepath.Base(os.Args[0]))
 }
 
-// exitWithError 打印错误信息后退出。
-func exitWithError(logger *device.Logger, format string, args ...any) {
-	logger.Errorf(format, args...)
-	os.Exit(ExitSetupFailed)
-}
-
 // 标准程序块
-var appName string = "fileserver"
-var appVer string = "v0.1.1"
+var appName string = "wireguard-go"
+var appVer string = "v1.1.1"
 var IsBeta string
 var BuildTime string
 
@@ -91,10 +85,11 @@ func main() {
 		device.LogLevelVerbose,
 		fmt.Sprintf("%s", interfaceName),
 	)
-	logger.Verbosef("正在启动 wireguard-go v%s", Version)
+	logs.Notice("正在启动 %s %s", appName, appVer)
 
 	if err := tun.CheckWintunReady(); err != nil {
-		exitWithError(logger, err.Error())
+		logs.Error(err)
+		return
 	}
 
 	tun, err := tun.CreateTUN(interfaceName, 0)
@@ -104,19 +99,19 @@ func main() {
 			interfaceName = realInterfaceName
 		}
 	} else {
-		exitWithError(logger, "创建 TUN 设备失败: %v", err)
+		logs.Error("创建 TUN 设备失败, %v", err)
 	}
 
 	device := device.NewDevice(tun, conn.NewDefaultBind(), logger)
 	err = device.Up()
 	if err != nil {
-		exitWithError(logger, "启动设备失败: %v", err)
+		logs.Error("启动设备失败: %v", err)
 	}
 	logger.Verbosef("设备已启动")
 
 	uapi, err := ipc.UAPIListen(interfaceName)
 	if err != nil {
-		exitWithError(logger, "UAPI 监听失败: %v", err)
+		logs.Error("UAPI 监听失败: %v", err)
 	}
 
 	errs := make(chan error)
