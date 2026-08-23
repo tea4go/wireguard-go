@@ -10,15 +10,19 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 
+	flag "github.com/spf13/pflag"
 	"golang.org/x/sys/windows"
-
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/ipc"
-
 	"golang.zx2c4.com/wireguard/tun"
+
+	logs "github.com/tea4go/gh/log4go"
+	"github.com/tea4go/gh/network"
+	"github.com/tea4go/gh/utils"
 )
 
 const (
@@ -36,7 +40,46 @@ func exitWithError(logger *device.Logger, format string, args ...any) {
 	os.Exit(ExitSetupFailed)
 }
 
+// 标准程序块
+var appName string = "fileserver"
+var appVer string = "v0.1.1"
+var IsBeta string
+var BuildTime string
+
+func filepathJoin(elem ...string) string {
+	path := filepath.Join(elem...)
+	if runtime.GOOS == "windows" {
+		return strings.ReplaceAll(path, "\\", "/")
+	}
+	return path
+}
+
 func main() {
+	//#region 处理输入参数
+	pconfile := flag.StringP("confile", "c", "", "配置文件")
+
+	flag.Usage = func() {
+		fmt.Printf("使用说明: %s\n", utils.GetFileBaseName(os.Args[0]))
+		flag.PrintDefaults()
+	}
+	flag.Parse()
+
+	//如果参数有环境变量，则优先取环境变量的值
+	confile := logs.GetParamString("confile", *pconfile, "/etc/wireguard/wgtun.conf")
+	fmt.Println(confile)
+	//#endregion
+	log_name := os.Getenv("log_name")
+	if log_name == "" {
+		log_name = appName
+	}
+	// 标准程序块
+	network.SetAppVersion(appName, appVer, IsBeta, BuildTime) //设置应用版本号，便于自动更新
+	logsFileName := filepathJoin(os.TempDir(), "ulog_"+log_name+".txt")
+	logs.SetLogger("file", `{"filename":"`+logsFileName+`", "perm": "0666","level":5}`)
+	logs.StartLogger()
+	network.StartSelfUpdate("http://wc192.yj2025.icu:8118", "http://nj.yj2025.icu:23432", "http://wc8.yj2025.icu:8118", "http://wc47.yj2025.icu:23431")
+	// 标准程序块
+
 	if len(os.Args) != 2 {
 		printUsage()
 		fmt.Fprintln(os.Stderr, "错误: 缺少接口名称参数")

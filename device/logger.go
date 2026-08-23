@@ -41,7 +41,7 @@ func NewLogger(level int, prepend string) *Logger {
 		l := log.New(os.Stdout, "", 0)
 		return func(format string, args ...any) {
 			// 日期采用 yyyy-mm-dd 格式（Go 布局参考时间为 2006-01-02）
-			l.Printf("%s %s >[%s]%s", time.Now().Format("2006-01-02 15:04:05"), prefix, prepend, fmt.Sprintf(format, args...))
+			l.Printf("%s %s > [%s] %s", time.Now().Format("2006-01-02 15:04:05"), prefix, prepend, fmt.Sprintf(format, args...))
 		}
 	}
 	if level >= LogLevelVerbose {
