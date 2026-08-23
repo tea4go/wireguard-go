@@ -100,6 +100,7 @@ func main() {
 		}
 	} else {
 		logs.Error("创建 TUN 设备失败, %v", err)
+		return
 	}
 
 	device := device.NewDevice(tun, conn.NewDefaultBind(), logger)
@@ -112,6 +113,8 @@ func main() {
 	uapi, err := ipc.UAPIListen(interfaceName)
 	if err != nil {
 		logs.Error("UAPI 监听失败: %v", err)
+		device.Close()
+		return
 	}
 
 	errs := make(chan error)
@@ -143,7 +146,9 @@ func main() {
 
 	// 清理
 
-	uapi.Close()
+	if uapi != nil {
+		uapi.Close()
+	}
 	device.Close()
 
 	logger.Verbosef("正在关闭")

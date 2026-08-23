@@ -8,6 +8,7 @@ package tun
 import (
 	"errors"
 	"fmt"
+
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	"time"
 	_ "unsafe"
 
+	logs "github.com/tea4go/gh/log4go"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wintun"
 )
@@ -99,7 +101,9 @@ var (
 )
 
 // CheckWintunReady 在创建 TUN 设备之前预检查 Wintun 是否就绪。
-// 返回 nil 表示就绪，否则返回具体的不就绪原因（DLL 缺失、驱动未安装/未运行等）。
+// 返回 nil 表示 DLL 已加载且基本可用，否则返回具体的不就绪原因（DLL 缺失、无法加载等）。
+// 注意：首次运行时内核驱动尚未安装是正常现象，wintun.CreateAdapter 会自动从 DLL 资源中提取并安装驱动，
+// 因此 RunningVersion 失败仅记录警告，不视为致命错误。
 func CheckWintunReady() error {
 	dllVersion := wintun.Version()
 	if dllVersion == "unknown" {
@@ -114,9 +118,14 @@ func CheckWintunReady() error {
 	}
 	driverVersion, err := wintun.RunningVersion()
 	if err != nil {
-		return fmt.Errorf("Wintun 驱动未安装或未运行(wintun %s), %v", dllVersion, err)
+		if errors.Is(err, windows.ERROR_FILE_NOT_FOUND) {
+			logs.Notice("[Wintun] 检测到 wintun.dll v%s 已加载，但内核驱动尚未安装或未启动；首次创建适配器时将自动安装驱动，请确认程序以管理员权限运行。", dllVersion)
+		} else {
+			logs.Notice("[Wintun] 检测到 wintun.dll v%s 已加载，但查询驱动版本失败：%v；将尝试直接创建适配器，若失败请确认驱动安装情况与权限。", dllVersion, err)
+		}
+		return nil
 	}
-	_ = driverVersion
+	logs.Notice("[Wintun] 就绪：wintun.dll v%s，已加载驱动版本 0x%08x", dllVersion, driverVersion)
 	return nil
 }
 
