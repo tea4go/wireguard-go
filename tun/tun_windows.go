@@ -121,7 +121,7 @@ func CheckWintunReady() error {
 		if errors.Is(err, windows.ERROR_FILE_NOT_FOUND) {
 			logs.Notice("[Wintun] 检测到 wintun.dll v%s 已加载，但内核驱动尚未安装或未启动；首次创建适配器时将自动安装驱动，请确认程序以管理员权限运行。", dllVersion)
 		} else {
-			logs.Notice("[Wintun] 检测到 wintun.dll v%s 已加载，但查询驱动版本失败：%v；将尝试直接创建适配器，若失败请确认驱动安装情况与权限。", dllVersion, err)
+			logs.Notice("[Wintun] 检测到 wintun.dll v%s 已加载，但查询驱动版本失败, %v；将尝试直接创建适配器，若失败请确认驱动安装情况与权限。", dllVersion, err)
 		}
 		return nil
 	}

@@ -85,7 +85,7 @@ func (peer *Peer) SendKeepalive() {
 		elemsContainer.elems = append(elemsContainer.elems, elem)
 		select {
 		case peer.queue.staged <- elemsContainer:
-			peer.device.log.Verbosef("%v - Sending keepalive packet", peer)
+			peer.device.log.Verbosef("%v - 正在发送保活数据包", peer)
 		default:
 			peer.device.PutMessageBuffer(elem.buffer)
 			peer.device.PutOutboundElement(elem)
@@ -115,11 +115,11 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.log.Verbosef("%v - Sending handshake initiation", peer)
+	peer.device.log.Verbosef("%v - 正在发送握手发起消息", peer)
 
 	msg, err := peer.device.CreateMessageInitiation(peer)
 	if err != nil {
-		peer.device.log.Errorf("%v - Failed to create initiation message: %v", peer, err)
+		peer.device.log.Errorf("%v - 创建握手发起消息失败, %v", peer, err)
 		return err
 	}
 
@@ -132,7 +132,7 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 
 	err = peer.SendBuffers([][]byte{packet})
 	if err != nil {
-		peer.device.log.Errorf("%v - Failed to send handshake initiation: %v", peer, err)
+		peer.device.log.Errorf("%v - 发送握手发起消息失败, %v", peer, err)
 	}
 	peer.timersHandshakeInitiated()
 
@@ -144,11 +144,11 @@ func (peer *Peer) SendHandshakeResponse() error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.log.Verbosef("%v - Sending handshake response", peer)
+	peer.device.log.Verbosef("%v - 正在发送握手响应消息", peer)
 
 	response, err := peer.device.CreateMessageResponse(peer)
 	if err != nil {
-		peer.device.log.Errorf("%v - Failed to create response message: %v", peer, err)
+		peer.device.log.Errorf("%v - 创建握手响应消息失败, %v", peer, err)
 		return err
 	}
 
@@ -158,7 +158,7 @@ func (peer *Peer) SendHandshakeResponse() error {
 
 	err = peer.BeginSymmetricSession()
 	if err != nil {
-		peer.device.log.Errorf("%v - Failed to derive keypair: %v", peer, err)
+		peer.device.log.Errorf("%v - 派生密钥对失败, %v", peer, err)
 		return err
 	}
 
@@ -169,18 +169,18 @@ func (peer *Peer) SendHandshakeResponse() error {
 	// TODO: allocation could be avoided
 	err = peer.SendBuffers([][]byte{packet})
 	if err != nil {
-		peer.device.log.Errorf("%v - Failed to send handshake response: %v", peer, err)
+		peer.device.log.Errorf("%v - 发送握手响应消息失败, %v", peer, err)
 	}
 	return err
 }
 
 func (device *Device) SendHandshakeCookie(initiatingElem *QueueHandshakeElement) error {
-	device.log.Verbosef("Sending cookie response for denied handshake message for %v", initiatingElem.endpoint.DstToString())
+	device.log.Verbosef("正在为被拒绝的握手消息向 %v 发送 cookie 响应", initiatingElem.endpoint.DstToString())
 
 	sender := binary.LittleEndian.Uint32(initiatingElem.packet[4:8])
 	reply, err := device.cookieChecker.CreateReply(initiatingElem.packet, sender, initiatingElem.endpoint.DstToBytes())
 	if err != nil {
-		device.log.Errorf("Failed to create cookie reply: %v", err)
+		device.log.Errorf("创建 cookie 回复失败, %v", err)
 		return err
 	}
 
@@ -205,12 +205,12 @@ func (peer *Peer) keepKeyFreshSending() {
 
 func (device *Device) RoutineReadFromTUN() {
 	defer func() {
-		device.log.Verbosef("Routine: TUN reader - stopped")
+		device.log.Verbosef("例程：TUN 读取器 - 已停止")
 		device.state.stopping.Done()
 		device.queue.encryption.wg.Done()
 	}()
 
-	device.log.Verbosef("Routine: TUN reader - started")
+	device.log.Verbosef("例程：TUN 读取器 - 已启动")
 
 	var (
 		batchSize   = device.BatchSize()
@@ -266,7 +266,7 @@ func (device *Device) RoutineReadFromTUN() {
 				peer = device.allowedips.Lookup(dst)
 
 			default:
-				device.log.Verbosef("Received packet with unknown IP version")
+				device.log.Verbosef("收到 IP 版本未知的数据包")
 			}
 
 			if peer == nil {
@@ -301,12 +301,12 @@ func (device *Device) RoutineReadFromTUN() {
 				// TODO: record stat for this
 				// This will happen if MSS is surprisingly small (< 576)
 				// coincident with reasonably high throughput.
-				device.log.Verbosef("Dropped some packets from multi-segment read: %v", readErr)
+				device.log.Verbosef("多分段读取时丢弃了部分数据包, %v", readErr)
 				continue
 			}
 			if !device.isClosed() {
 				if !errors.Is(readErr, os.ErrClosed) {
-					device.log.Errorf("Failed to read packet from TUN device: %v", readErr)
+					device.log.Errorf("从 TUN 设备读取数据包失败, %v", readErr)
 				}
 				go device.Close()
 			}
@@ -440,8 +440,8 @@ func (device *Device) RoutineEncryption(id int) {
 	var paddingZeros [PaddingMultiple]byte
 	var nonce [chacha20poly1305.NonceSize]byte
 
-	defer device.log.Verbosef("Routine: encryption worker %3d - stopped", id)
-	device.log.Verbosef("Routine: encryption worker %3d - started", id)
+	defer device.log.Verbosef("例程：加密工作线程 %3d - 已停止", id)
+	device.log.Verbosef("例程：加密工作线程 %3d - 已启动", id)
 
 	for elemsContainer := range device.queue.encryption.c {
 		for _, elem := range elemsContainer.elems {
@@ -477,10 +477,10 @@ func (device *Device) RoutineEncryption(id int) {
 func (peer *Peer) RoutineSequentialSender(maxBatchSize int) {
 	device := peer.device
 	defer func() {
-		defer device.log.Verbosef("%v - Routine: sequential sender - stopped", peer)
+		defer device.log.Verbosef("%v - 例程：顺序发送器 - 已停止", peer)
 		peer.stopping.Done()
 	}()
-	device.log.Verbosef("%v - Routine: sequential sender - started", peer)
+	device.log.Verbosef("%v - 例程：顺序发送器 - 已启动", peer)
 
 	bufs := make([][]byte, 0, maxBatchSize)
 
@@ -528,12 +528,12 @@ func (peer *Peer) RoutineSequentialSender(maxBatchSize int) {
 		if err != nil {
 			var errGSO conn.ErrUDPGSODisabled
 			if errors.As(err, &errGSO) {
-				device.log.Verbosef(err.Error())
+				device.log.Verbosef("发送数据包时发生错误, %v", err)
 				err = errGSO.RetryErr
 			}
 		}
 		if err != nil {
-			device.log.Errorf("%v - Failed to send data packets: %v", peer, err)
+			device.log.Errorf("%v - 发送数据包失败, %v", peer, err)
 			continue
 		}
 

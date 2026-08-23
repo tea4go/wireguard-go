@@ -408,11 +408,11 @@ func (device *Device) ConsumeMessageInitiation(msg *MessageInitiation) *Peer {
 	flood := time.Since(handshake.lastInitiationConsumption) <= HandshakeInitationRate
 	handshake.mutex.RUnlock()
 	if replay {
-		device.log.Verbosef("%v - ConsumeMessageInitiation: handshake replay @ %v", peer, timestamp)
+		device.log.Verbosef("%v - 处理握手发起消息：检测到握手重放 @ %v", peer, timestamp)
 		return nil
 	}
 	if flood {
-		device.log.Verbosef("%v - ConsumeMessageInitiation: handshake flood", peer)
+		device.log.Verbosef("%v - 处理握手发起消息：检测到握手洪泛", peer)
 		return nil
 	}
 

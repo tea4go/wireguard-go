@@ -142,7 +142,7 @@ func (device *Device) changeState(want deviceState) (err error) {
 	old := device.deviceState()
 	if old == deviceStateClosed {
 		// once closed, always closed
-		device.log.Verbosef("Interface closed, ignored requested state %s", want)
+		device.log.Verbosef("接口已关闭，忽略请求的状态 %s", want)
 		return nil
 	}
 	switch want {
@@ -162,7 +162,7 @@ func (device *Device) changeState(want deviceState) (err error) {
 			err = errDown
 		}
 	}
-	device.log.Verbosef("Interface state was %s, requested %s, now %s", old, want, device.deviceState())
+	device.log.Verbosef("接口原状态为 %s，请求状态为 %s，当前状态为 %s", old, want, device.deviceState())
 	return
 }
 
@@ -170,7 +170,7 @@ func (device *Device) changeState(want deviceState) (err error) {
 // The caller must hold device.state.mu and is responsible for updating device.state.state.
 func (device *Device) upLocked() error {
 	if err := device.BindUpdate(); err != nil {
-		device.log.Errorf("Unable to update bind: %v", err)
+		device.log.Errorf("无法更新绑定, %v", err)
 		return err
 	}
 
@@ -195,7 +195,7 @@ func (device *Device) upLocked() error {
 func (device *Device) downLocked() error {
 	err := device.BindClose()
 	if err != nil {
-		device.log.Errorf("Bind close failed: %v", err)
+		device.log.Errorf("关闭绑定失败, %v", err)
 	}
 
 	device.peers.RLock()
@@ -290,7 +290,7 @@ func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device.tun.device = tunDevice
 	mtu, err := device.tun.device.MTU()
 	if err != nil {
-		device.log.Errorf("Trouble determining MTU, assuming default: %v", err)
+		device.log.Errorf("无法确定 MTU，使用默认值, %v", err)
 		mtu = DefaultMTU
 	}
 	device.tun.mtu.Store(int32(mtu))
@@ -376,7 +376,7 @@ func (device *Device) Close() {
 		return
 	}
 	device.state.state.Store(uint32(deviceStateClosed))
-	device.log.Verbosef("Device closing")
+	device.log.Verbosef("正在关闭设备")
 
 	device.tun.device.Close()
 	device.downLocked()
@@ -395,7 +395,7 @@ func (device *Device) Close() {
 
 	device.rate.limiter.Close()
 
-	device.log.Verbosef("Device closed")
+	device.log.Verbosef("设备已关闭")
 	close(device.closed)
 }
 
@@ -552,7 +552,7 @@ func (device *Device) BindUpdate() error {
 		go device.RoutineReceiveIncoming(batchSize, fn)
 	}
 
-	device.log.Verbosef("UDP bind has been updated")
+	device.log.Verbosef("UDP 绑定已更新")
 	return nil
 }
 

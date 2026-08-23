@@ -83,7 +83,7 @@ const (
 func enableRequiredPrivileges() {
 	var token windows.Token
 	if err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, &token); err != nil {
-		log.Printf("[UAPI] 无法打开当前进程 token：%v，将直接尝试创建管道。", err)
+		log.Printf("[UAPI] 无法打开当前进程 token, %v，将直接尝试创建管道。", err)
 		return
 	}
 	defer token.Close()
@@ -126,7 +126,7 @@ func UAPIListen(name string) (net.Listener, error) {
 			rootErr = unwrapped
 		}
 		if errors.Is(rootErr, windows.ERROR_INVALID_OWNER) || errors.Is(rootErr, windows.ERROR_PRIVILEGE_NOT_HELD) {
-			log.Printf("[UAPI] 高特权安全描述符创建失败（当前进程无 SE_RESTORE/SeSecurity 特权），将使用兼容描述符重试：%v", err)
+			log.Printf("[UAPI] 高特权安全描述符创建失败（当前进程无 SE_RESTORE/SeSecurity 特权），将使用兼容描述符重试, %v", err)
 			listener, err = (&namedpipe.ListenConfig{
 				SecurityDescriptor: FallbackUAPISecurityDescriptor,
 			}).Listen(pipePath)
