@@ -38,17 +38,17 @@ func DiscardLogf(format string, args ...any) {}
 func NewLogger(level int, prepend string) *Logger {
 	logger := &Logger{DiscardLogf, DiscardLogf}
 	logf := func(prefix string) func(string, ...any) {
-		l := log.New(os.Stdout, prefix+": "+prepend, 0)
+		l := log.New(os.Stdout, "", 0)
 		return func(format string, args ...any) {
 			// 日期采用 yyyy-mm-dd 格式（Go 布局参考时间为 2006-01-02）
-			l.Printf("%s %s", time.Now().Format("2006-01-02 15:04:05"), fmt.Sprintf(format, args...))
+			l.Printf("%s %s >[%s]%s", time.Now().Format("2006-01-02 15:04:05"), prefix, prepend, fmt.Sprintf(format, args...))
 		}
 	}
 	if level >= LogLevelVerbose {
-		logger.Verbosef = logf("DEBUG")
+		logger.Verbosef = logf("[D]")
 	}
 	if level >= LogLevelError {
-		logger.Errorf = logf("ERROR")
+		logger.Errorf = logf("[E]")
 	}
 	return logger
 }

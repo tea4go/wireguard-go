@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/sys/windows"
 
@@ -41,11 +42,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "错误: 缺少接口名称参数")
 		os.Exit(ExitSetupFailed)
 	}
-	interfaceName := os.Args[1]
+	interfaceName := strings.TrimSpace(os.Args[1])
 
 	logger := device.NewLogger(
 		device.LogLevelVerbose,
-		fmt.Sprintf("(%s) ", interfaceName),
+		fmt.Sprintf("%s", interfaceName),
 	)
 	logger.Verbosef("正在启动 wireguard-go v%s", Version)
 
