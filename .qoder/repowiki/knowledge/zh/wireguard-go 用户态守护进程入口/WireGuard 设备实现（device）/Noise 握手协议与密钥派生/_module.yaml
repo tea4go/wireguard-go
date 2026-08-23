@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: device/noise_protocol
+title: Noise 握手协议与密钥派生
+scope:
+    - device/noise-protocol.go
+    - device/noise-types.go
+    - device/noise-helpers.go
+source_files: []
+depends_on: []
+related_to:
+    - path: device/peer_session

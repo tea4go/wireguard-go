@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: ipc
+title: WireGuard UAPI 进程间通信层
+scope:
+    - ipc/
+source_files: []
+depends_on: []
+related_to:
+    - path: device
+    - path: device/uapi_ipc

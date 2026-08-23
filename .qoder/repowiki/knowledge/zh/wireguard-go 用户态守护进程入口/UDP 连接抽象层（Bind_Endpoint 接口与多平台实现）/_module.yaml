@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: conn
+title: UDP 连接抽象层（Bind/Endpoint 接口与多平台实现）
+scope:
+    - conn/
+source_files: []
+depends_on: []
+related_to:
+    - path: device

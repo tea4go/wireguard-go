@@ -1,0 +1,199 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: master
+nodes_managed: true
+exported_at: "2026-08-23T04:22:21Z"
+modules:
+    "":
+        dir_name: wireguard-go 用户态守护进程入口
+        title: wireguard-go 用户态守护进程入口
+        scope:
+            - main.go
+            - main_windows.go
+            - version.go
+            - go.mod
+            - go.sum
+            - Makefile
+            - README.md
+            - readme_cn.md
+            - .gitignore
+            - CLAUDE.md
+            - format_test.go
+            - LICENSE
+        source_files: []
+        children:
+            - conn
+            - device
+            - ipc
+            - support_libs
+            - tun
+        depends_on: []
+        related_to: []
+    conn:
+        dir_name: UDP 连接抽象层（Bind_Endpoint 接口与多平台实现）
+        title: UDP 连接抽象层（Bind/Endpoint 接口与多平台实现）
+        scope:
+            - conn/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device
+    device:
+        dir_name: WireGuard 设备实现（device）
+        title: WireGuard 设备实现（device）
+        scope:
+            - device/
+        source_files: []
+        children:
+            - device/device_core
+            - device/noise_protocol
+            - device/packet_io
+            - device/peer_session
+            - device/platform_and_runtime
+            - device/platform_variants
+            - device/routing_tables
+            - device/uapi_ipc
+        depends_on: []
+        related_to:
+            - path: conn
+            - path: ipc
+            - path: support_libs
+            - path: tun
+    device/device_core:
+        dir_name: WireGuard 设备核心与状态管理
+        title: WireGuard 设备核心与状态管理
+        scope:
+            - device/device.go
+            - device/constants.go
+            - device/devicestate_string.go
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device/peer_session
+    device/noise_protocol:
+        dir_name: Noise 握手协议与密钥派生
+        title: Noise 握手协议与密钥派生
+        scope:
+            - device/noise-protocol.go
+            - device/noise-types.go
+            - device/noise-helpers.go
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device/peer_session
+    device/packet_io:
+        dir_name: 数据包收发与加密流水线
+        title: 数据包收发与加密流水线
+        scope:
+            - device/send.go
+            - device/receive.go
+            - device/channels.go
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device/routing_tables
+    device/peer_session:
+        dir_name: 对等端会话与密钥管理
+        title: 对等端会话与密钥管理
+        scope:
+            - device/peer.go
+            - device/keypair.go
+            - device/timers.go
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device/device_core
+            - path: device/noise_protocol
+            - path: device/routing_tables
+    device/platform_and_runtime:
+        dir_name: 设备运行时基础设施（对象池、日志与TUN事件）
+        title: 设备运行时基础设施（对象池、日志与TUN事件）
+        scope:
+            - device/pools.go
+            - device/logger.go
+            - device/tun.go
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device/platform_variants
+    device/platform_variants:
+        dir_name: 平台相关队列常量与粘性路由监听
+        title: 平台相关队列常量与粘性路由监听
+        scope:
+            - device/queueconstants_android.go
+            - device/queueconstants_default.go
+            - device/queueconstants_ios.go
+            - device/queueconstants_windows.go
+            - device/sticky_default.go
+            - device/sticky_linux.go
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device/platform_and_runtime
+    device/routing_tables:
+        dir_name: 路由表与索引表（AllowedIPs、IndexTable）
+        title: 路由表与索引表（AllowedIPs、IndexTable）
+        scope:
+            - device/allowedips.go
+            - device/indextable.go
+            - device/ip.go
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device/packet_io
+            - path: device/peer_session
+    device/uapi_ipc:
+        dir_name: UAPI 配置协议与 Cookie 防护
+        title: UAPI 配置协议与 Cookie 防护
+        scope:
+            - device/uapi.go
+            - device/cookie.go
+            - device/mobilequirks.go
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: ipc
+    ipc:
+        dir_name: WireGuard UAPI 进程间通信层
+        title: WireGuard UAPI 进程间通信层
+        scope:
+            - ipc/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device
+            - path: device/uapi_ipc
+    support_libs:
+        dir_name: 网络协议支撑库（限速、防重放、可取消 I_O、TAI64N 时间戳）
+        title: 网络协议支撑库（限速、防重放、可取消 I/O、TAI64N 时间戳）
+        scope:
+            - ratelimiter/
+            - replay/
+            - rwcancel/
+            - tai64n/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device
+    tun:
+        dir_name: TUN 设备抽象与内核网络栈适配层
+        title: TUN 设备抽象与内核网络栈适配层
+        scope:
+            - tun/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: device

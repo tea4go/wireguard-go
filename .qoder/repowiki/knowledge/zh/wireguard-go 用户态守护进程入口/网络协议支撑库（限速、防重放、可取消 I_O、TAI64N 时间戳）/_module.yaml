@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: support_libs
+title: 网络协议支撑库（限速、防重放、可取消 I/O、TAI64N 时间戳）
+scope:
+    - ratelimiter/
+    - replay/
+    - rwcancel/
+    - tai64n/
+source_files: []
+depends_on: []
+related_to:
+    - path: device

@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: device/platform_variants
+title: 平台相关队列常量与粘性路由监听
+scope:
+    - device/queueconstants_android.go
+    - device/queueconstants_default.go
+    - device/queueconstants_ios.go
+    - device/queueconstants_windows.go
+    - device/sticky_default.go
+    - device/sticky_linux.go
+source_files: []
+depends_on: []
+related_to:
+    - path: device/platform_and_runtime

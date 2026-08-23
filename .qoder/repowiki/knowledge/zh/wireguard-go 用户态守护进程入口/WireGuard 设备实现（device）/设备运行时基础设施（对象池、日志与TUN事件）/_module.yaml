@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: device/platform_and_runtime
+title: 设备运行时基础设施（对象池、日志与TUN事件）
+scope:
+    - device/pools.go
+    - device/logger.go
+    - device/tun.go
+source_files: []
+depends_on: []
+related_to:
+    - path: device/platform_variants

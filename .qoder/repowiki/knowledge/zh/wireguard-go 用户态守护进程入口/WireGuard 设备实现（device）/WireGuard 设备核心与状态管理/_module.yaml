@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: device/device_core
+title: WireGuard 设备核心与状态管理
+scope:
+    - device/device.go
+    - device/constants.go
+    - device/devicestate_string.go
+source_files: []
+depends_on: []
+related_to:
+    - path: device/peer_session

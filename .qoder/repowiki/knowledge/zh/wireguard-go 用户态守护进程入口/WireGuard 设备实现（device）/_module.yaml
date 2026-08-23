@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: device
+title: WireGuard 设备实现（device）
+scope:
+    - device/
+source_files: []
+depends_on: []
+related_to:
+    - path: conn
+    - path: ipc
+    - path: support_libs
+    - path: tun

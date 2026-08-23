@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: device/routing_tables
+title: 路由表与索引表（AllowedIPs、IndexTable）
+scope:
+    - device/allowedips.go
+    - device/indextable.go
+    - device/ip.go
+source_files: []
+depends_on: []
+related_to:
+    - path: device/packet_io
+    - path: device/peer_session

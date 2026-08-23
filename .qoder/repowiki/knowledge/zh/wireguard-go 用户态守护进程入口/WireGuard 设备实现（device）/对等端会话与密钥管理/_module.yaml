@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: device/peer_session
+title: 对等端会话与密钥管理
+scope:
+    - device/peer.go
+    - device/keypair.go
+    - device/timers.go
+source_files: []
+depends_on: []
+related_to:
+    - path: device/device_core
+    - path: device/noise_protocol
+    - path: device/routing_tables

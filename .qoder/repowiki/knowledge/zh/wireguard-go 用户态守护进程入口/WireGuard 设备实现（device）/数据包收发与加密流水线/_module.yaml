@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: device/packet_io
+title: 数据包收发与加密流水线
+scope:
+    - device/send.go
+    - device/receive.go
+    - device/channels.go
+source_files: []
+depends_on: []
+related_to:
+    - path: device/routing_tables

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: device/uapi_ipc
+title: UAPI 配置协议与 Cookie 防护
+scope:
+    - device/uapi.go
+    - device/cookie.go
+    - device/mobilequirks.go
+source_files: []
+depends_on: []
+related_to:
+    - path: ipc
