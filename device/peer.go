@@ -9,6 +9,8 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"net/netip"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -147,32 +149,48 @@ func (peer *Peer) SendBuffers(buffers [][]byte) error {
 }
 
 func (peer *Peer) String() string {
+	var allowedIPs []string
+	peer.device.allowedips.EntriesForPeer(peer,
+		func(prefix netip.Prefix) bool {
+			ip := prefix.Addr().String()
+			cidr := prefix.Bits()
+			if prefix.Addr().Is4() {
+				parts := strings.Split(ip, ".")
+				if len(parts) == 4 {
+					ip = parts[2] + "." + parts[3]
+				}
+			} else {
+				parts := strings.Split(ip, ":")
+				if n := len(parts); n >= 2 {
+					ip = parts[n-2] + ":" + parts[n-1]
+				}
+			}
+			allowedIPs = append(allowedIPs, fmt.Sprintf("%s/%d", ip, cidr))
+			return true
+		})
+
 	if peer.Name != "" {
-		return "Peer(" + peer.Name + ")"
+		if len(allowedIPs) == 0 {
+			return fmt.Sprintf("Peer(%s)", peer.Name)
+		}
+		return fmt.Sprintf("Peer(%s-%s)", peer.Name, strings.Join(allowedIPs, ","))
+	} else {
+		src := peer.handshake.remoteStatic
+		b64 := func(input byte) byte {
+			return input + 'A' + byte(((25-int(input))>>8)&6) - byte(((51-int(input))>>8)&75) - byte(((61-int(input))>>8)&15) + byte(((62-int(input))>>8)&3)
+		}
+		b := []byte("Peer(____")
+		const first = len("peer(")
+		b[first+0] = b64((src[0] >> 2) & 63)
+		b[first+1] = b64(((src[0] << 4) | (src[1] >> 4)) & 63)
+		b[first+2] = b64(((src[1] << 2) | (src[2] >> 6)) & 63)
+		b[first+3] = b64(src[2] & 63)
+
+		if len(allowedIPs) == 0 {
+			return fmt.Sprintf("%s)", string(b))
+		}
+		return fmt.Sprintf("%s-%s)", string(b), strings.Join(allowedIPs, ","))
 	}
-	// The awful goo that follows is identical to:
-	//
-	//   base64Key := base64.StdEncoding.EncodeToString(peer.handshake.remoteStatic[:])
-	//   abbreviatedKey := base64Key[0:4] + "…" + base64Key[39:43]
-	//   return fmt.Sprintf("peer(%s)", abbreviatedKey)
-	//
-	// except that it is considerably more efficient.
-	src := peer.handshake.remoteStatic
-	b64 := func(input byte) byte {
-		return input + 'A' + byte(((25-int(input))>>8)&6) - byte(((51-int(input))>>8)&75) - byte(((61-int(input))>>8)&15) + byte(((62-int(input))>>8)&3)
-	}
-	b := []byte("Peer(____…____")
-	const first = len("peer(")
-	const second = len("peer(____…")
-	b[first+0] = b64((src[0] >> 2) & 63)
-	b[first+1] = b64(((src[0] << 4) | (src[1] >> 4)) & 63)
-	b[first+2] = b64(((src[1] << 2) | (src[2] >> 6)) & 63)
-	b[first+3] = b64(src[2] & 63)
-	b[second+0] = b64(src[29] & 63)
-	b[second+1] = b64((src[30] >> 2) & 63)
-	b[second+2] = b64(((src[30] << 4) | (src[31] >> 4)) & 63)
-	b[second+3] = b64((src[31] << 2) & 63)
-	return string(b) + fmt.Sprint("-%s)", peer.cookieGenerator)
 }
 
 func (peer *Peer) Start() {
