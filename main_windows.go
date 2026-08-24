@@ -112,6 +112,7 @@ type runningInterface struct {
 	name   string
 	device *device.Device
 	uapi   net.Listener
+	luid   uint64
 }
 
 func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
@@ -182,10 +183,19 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	}
 	logs.Info("[%s] UAPI 监听已启动", interfaceName)
 
+	var tunLuid uint64
+	if native, ok := tunDevice.(*tun.NativeTun); ok {
+		tunLuid = native.LUID()
+		if tunLuid != 0 {
+			logs.Verbosef("[%s] 虚拟网卡 LUID = 0x%x", interfaceName, tunLuid)
+		}
+	}
+
 	return &runningInterface{
 		name:   interfaceName,
 		device: dev,
 		uapi:   uapi,
+		luid:   tunLuid,
 	}, nil
 }
 
@@ -392,21 +402,30 @@ func main() {
 	if len(running) == 0 {
 		logs.Warning("当前没有成功启动的接口，进程将保持运行并等待终止信号")
 	} else {
+		excludedLuids := make(map[uint64]string, len(running))
+		for _, ri := range running {
+			if ri.luid != 0 {
+				excludedLuids[ri.luid] = ri.name
+			}
+		}
 		var err error
 		networkMonitor, err = startWindowsNetworkMonitor(
 			func() {
-				logs.Debug("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
+				logs.Notice("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
 				for _, ri := range running {
 					if err := ri.device.HandleNetworkChange(); err != nil {
-						logs.Warning("[%s] 网络变化恢复失败: %v", ri.name, err)
+						logs.Error("[%s] 网络变化恢复失败: %v", ri.name, err)
 						continue
 					}
-					logs.Info("[%s] 网络变化恢复完成", ri.name)
+					logs.Notice("[%s] 网络变化恢复完成", ri.name)
 				}
-			})
+			}, excludedLuids)
 		if err != nil {
 			logs.Error("启动 Windows 网络变化监视失败: %v", err)
 		} else {
+			if len(excludedLuids) > 0 {
+				logs.Verbosef("[NetMon] 已排除 %d 个虚拟网卡的自触发通知: %v", len(excludedLuids), excludedLuids)
+			}
 			logs.Notice("Windows 网络变化监视已启动")
 		}
 	}
