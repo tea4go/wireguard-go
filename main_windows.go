@@ -154,13 +154,13 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 		dev.Close()
 		return nil, fmt.Errorf("启动设备失败, %w", err)
 	}
-	logs.Notice("[%s] 设备启动成功", interfaceName)
+	logs.Info("[%s] 虚拟网卡设备启动成功", interfaceName)
 
 	if len(cfg.Addresses) > 0 {
-		logs.Debug("[%s] 开始应用 %d 个接口地址", interfaceName, len(cfg.Addresses))
+		logs.Debug("[%s] 开始设置IP地址 %v", interfaceName, cfg.Addresses)
 		addressWarnings := applyInterfaceAddresses(interfaceName, cfg.Addresses)
 		if len(addressWarnings) == 0 {
-			logs.Debug("[%s] 接口地址应用完成 %d 个地址", interfaceName, len(cfg.Addresses))
+			logs.Info("[%s] 设置IP地址 %v 成功", interfaceName, cfg.Addresses)
 		} else {
 			for _, warning := range addressWarnings {
 				logs.Warning(warning)
@@ -168,7 +168,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 		}
 	}
 
-	logs.Info("[%s] 开始关闭 IPv6 绑定", interfaceName)
+	logs.Debug("[%s] 开始关闭 IPv6 绑定", interfaceName)
 	if err := disableInterfaceIPv6(interfaceName); err != nil {
 		logs.Warning("[%s] 关闭 IPv6 绑定失败, %v", interfaceName, err)
 	} else {
@@ -393,16 +393,17 @@ func main() {
 		logs.Warning("当前没有成功启动的接口，进程将保持运行并等待终止信号")
 	} else {
 		var err error
-		networkMonitor, err = startWindowsNetworkMonitor(func() {
-			logs.Notice("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
-			for _, ri := range running {
-				if err := ri.device.HandleNetworkChange(); err != nil {
-					logs.Error("[%s] 网络变化恢复失败: %v", ri.name, err)
-					continue
+		networkMonitor, err = startWindowsNetworkMonitor(
+			func() {
+				logs.Notice("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
+				for _, ri := range running {
+					if err := ri.device.HandleNetworkChange(); err != nil {
+						logs.Error("[%s] 网络变化恢复失败: %v", ri.name, err)
+						continue
+					}
+					logs.Notice("[%s] 网络变化恢复完成", ri.name)
 				}
-				logs.Notice("[%s] 网络变化恢复完成", ri.name)
-			}
-		})
+			})
 		if err != nil {
 			logs.Error("启动 Windows 网络变化监视失败: %v", err)
 		} else {

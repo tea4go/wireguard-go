@@ -546,7 +546,7 @@ func (device *Device) BindUpdate() error {
 		go device.RoutineReceiveIncoming(batchSize, fn)
 	}
 
-	device.log.Info("UDP 绑定已更新")
+	device.log.Info("UDP 绑定已更新为端口 %d", netc.port)
 	return nil
 }
 
