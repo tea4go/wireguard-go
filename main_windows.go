@@ -115,9 +115,9 @@ type runningInterface struct {
 }
 
 func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
-	logs.Notice("接口 %s: 开始创建 TUN", cfg.InterfaceName)
+	logs.Debug("接口 %s: 开始创建 TUN", cfg.InterfaceName)
 	logger := device.NewLogger(
-		device.LogLevelNotice,
+		logs.GetLevel("file"),
 		fmt.Sprintf("%s", cfg.InterfaceName),
 	)
 
@@ -126,7 +126,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("创建 TUN 设备失败: %w", err)
 	}
-	logs.Notice("接口 %s: TUN 创建成功", cfg.InterfaceName)
+	logs.Debug("接口 %s: TUN 创建成功", cfg.InterfaceName)
 
 	interfaceName := cfg.InterfaceName
 	if realInterfaceName, err := tunDevice.Name(); err == nil {
@@ -134,9 +134,9 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	}
 
 	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), logger)
-	logger.Verbosef("配置摘要: %s", describeTunnelConfig(cfg))
+	logger.Debug("配置: %s", describeTunnelConfig(cfg))
 	for _, peer := range cfg.Peers {
-		logger.Verbosef("Peer 摘要: %s", describePeerConfig(peer))
+		logger.Debug("= 节点: %s", describePeerConfig(peer))
 	}
 	if cfg.UAPI != "" {
 		logs.Notice("接口 %s: 开始应用 WireGuard 配置", interfaceName)
@@ -274,10 +274,10 @@ func main() {
 	}
 
 	logs.Notice("当前启动参数")
-	logs.Notice("= Foreground ....... %v", *pforeground)
-	logs.Notice("= Daemon ........... %v", *pdaemon)
-	logs.Notice("= Confile .......... %s", confile)
-	logs.Notice("= LogLevel ......... %s", os.Getenv("log_level"))
+	logs.Info("= Foreground ....... %v", *pforeground)
+	logs.Info("= Daemon ........... %v", *pdaemon)
+	logs.Info("= Confile .......... %s", confile)
+	logs.Info("= LogLevel ......... %s", logs.GetLevel("file"))
 	if !*pforeground && !*pdaemon {
 		logs.Notice("准备启动守护进程 ......")
 		daemonMgr := NewDaemonManager()
@@ -345,14 +345,13 @@ func main() {
 	var warnings []string
 	configs, warnings = loadTunnelConfigs(confile)
 	logs.Notice("配置来源: %s", confile)
-	logs.Notice("本次共识别到 %d 个接口配置", len(configs))
+	logs.Info("本次共识别到 %d 个接口配置", len(configs))
 	for _, warning := range warnings {
 		logs.Error("配置告警: %s", warning)
 	}
 	for _, cfg := range configs {
-		logs.Notice("配置摘要: %s", describeTunnelConfig(cfg))
+		logs.Debug("配置: %s", describeTunnelConfig(cfg))
 	}
-	logs.Notice("正在启动 %s %s", appName, appVer)
 
 	if err := tun.CheckWintunReady(); err != nil {
 		logs.Error(err)

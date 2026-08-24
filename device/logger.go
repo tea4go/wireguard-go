@@ -13,6 +13,7 @@ import (
 // 所有方法均采用 Printf 风格（format + args），与 log4go 各级别 API 一一对应。
 type Logger struct {
 	Verbosef   func(format string, args ...any) // 详细/调试日志，映射到 log4go 的 Debug 级别
+	Debug      func(format string, args ...any) // 调试日志，
 	Info       func(format string, args ...any) // 信息级别
 	Notice     func(format string, args ...any) // 通知级别
 	Warningf   func(format string, args ...any) // 警告级别
@@ -76,7 +77,7 @@ func NewLogger(level int, prepend string) *Logger {
 	mkPrefix := func(format string) string {
 		return "[" + prepend + "] " + format
 	}
-	
+
 	// 9：Print 级别 → logs.Print（直接输出）
 	if level >= LogLevelPrint {
 		logger.Printf = func(format string, args ...any) {

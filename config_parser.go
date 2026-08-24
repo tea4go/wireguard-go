@@ -219,37 +219,36 @@ func describeTunnelConfig(cfg *tunnelConfig) string {
 
 	parts := []string{
 		"接口=" + cfg.InterfaceName,
-		"来源=" + cfg.Source,
-		fmt.Sprintf("Peer数=%d", len(cfg.Peers)),
-		fmt.Sprintf("AllowedIPs数=%d", allowedIPCount),
+		fmt.Sprintf("节点数=%d", len(cfg.Peers)),
+		fmt.Sprintf("允许IP数=%d", allowedIPCount),
 	}
 	if cfg.MTU > 0 {
 		parts = append(parts, fmt.Sprintf("MTU=%d", cfg.MTU))
 	}
 	if cfg.ListenPort != "" {
-		parts = append(parts, "ListenPort="+cfg.ListenPort)
+		parts = append(parts, "监听="+cfg.ListenPort)
 	}
 	if len(cfg.Addresses) > 0 {
-		parts = append(parts, "Address="+strings.Join(cfg.Addresses, ","))
+		parts = append(parts, "地址="+strings.Join(cfg.Addresses, ","))
 	}
 	if len(cfg.IgnoredFields) > 0 {
 		parts = append(parts, "忽略字段="+strings.Join(cfg.IgnoredFields, ","))
 	}
-	return strings.Join(parts, " | ")
+	return strings.Join(parts, ",")
 }
 
 func describePeerConfig(peer peerConfig) string {
 	parts := []string{
 		"公钥=" + abbreviateHexKey(peer.publicKey),
-		"AllowedIPs=" + strings.Join(peer.allowedIPs, ","),
+		"允许IP=" + strings.Join(peer.allowedIPs, ","),
 	}
 	if peer.endpoint != "" {
 		parts = append(parts, "Endpoint="+peer.endpoint)
 	}
 	if peer.hasPersistentKeepaliveLine {
-		parts = append(parts, "PersistentKeepalive="+peer.persistentKeepalive)
+		parts = append(parts, "保持连接="+peer.persistentKeepalive)
 	}
-	return strings.Join(parts, " | ")
+	return strings.Join(parts, ",")
 }
 
 func abbreviateHexKey(key string) string {
