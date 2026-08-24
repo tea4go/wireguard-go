@@ -137,18 +137,15 @@ foreach ($proc in @('wireguard', 'wireguard-go', 'compile', 'asm', 'link')) {
 # ============================================================
 #  Build with ldflags injection — values injected into
 #  Go `package main` variables defined in main.go / main_windows.go:
-#    - main.runtimeVersion (align with Makefile)
-#    - main.appVer         (APP_VER_FULL = TAG_BYYYYMMDD_HHmm)
-#    - main.BuildTime      ("yyyy-MM-dd(HH:mm:ss)", no embedded space
-#                            but still wrap the entire -X VALUE in escaped
-#                            "..." quotes for robustness when passing to
-#                            -ldflags string)
+#    - main.appVer         (APP_VER_FULL = IS_BETA=true -> TAG_BYYYYMMDD_HHmm
+#                                          IS_BETA=false -> TAG only)
+#    - main.BuildTime      ("yyyy-MM-dd(HH:mm:ss)", still wrap the entire
+#                            -X VALUE in escaped "..." quotes for robustness)
 #    - main.IsBeta         (only if $env:IS_BETA is non-empty)
 # ============================================================
 $LDFLAGS_PARTS = @('-s', '-w')
-$LDFLAGS_PARTS += "-X main.runtimeVersion=$APP_VER_FULL"
 $LDFLAGS_PARTS += "-X main.appVer=$APP_VER_FULL"
-$LDFLAGS_PARTS += "-X `"main.BuildTime=$BuildTime`""     # NB: inner escaped quotes needed for the ' ' in value
+$LDFLAGS_PARTS += "-X `"main.BuildTime=$BuildTime`""     # NB: inner escaped quotes for robustness
 if (-not [string]::IsNullOrWhiteSpace($env:IS_BETA)) {
     $LDFLAGS_PARTS += "-X main.IsBeta=$($env:IS_BETA)"
 }

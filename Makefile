@@ -62,7 +62,7 @@ WIN_BIN_NAME ?= wireguard-go.exe
 
 # ldflags injected into package main
 LDFLAGS_COMMON := -s -w
-LDFLAGS_VERSION := -X main.runtimeVersion=$(APP_VER_FULL) -X main.appVer=$(APP_VER_FULL) -X "main.BuildTime=$(BUILD_TIME)"
+LDFLAGS_VERSION := -X main.appVer=$(APP_VER_FULL) -X "main.BuildTime=$(BUILD_TIME)"
 ifneq ($(IS_BETA),)
 LDFLAGS_VERSION += -X main.IsBeta=$(IS_BETA)
 endif

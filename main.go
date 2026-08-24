@@ -21,10 +21,8 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-// runtimeVersion 可由构建系统通过 -ldflags "-X main.runtimeVersion=vX.Y.Z" 方式注入版本号。
-// 未注入时将回退到 appVer 默认值。
-var runtimeVersion string = ""
-
+// appVer 由构建系统通过 -ldflags "-X main.appVer=..." 方式注入版本号。
+// 未注入时回退到编译时默认值 "0.0.1"。
 var appVer string = "0.0.1"
 
 const (
@@ -45,9 +43,6 @@ func printUsage() {
 func printFullUsage() {
 	exeName := os.Args[0]
 	ver := appVer
-	if runtimeVersion != "" {
-		ver = runtimeVersion
-	}
 	if ver == "" {
 		ver = "(未注入)"
 	}
@@ -136,9 +131,6 @@ func main() {
 			return
 		case "--version":
 			ver := appVer
-			if runtimeVersion != "" {
-				ver = runtimeVersion
-			}
 			fmt.Printf("wireguard-go %s\n\nUserspace WireGuard daemon for %s-%s.\nInformation available at https://www.wireguard.com.\nCopyright (C) Jason A. Donenfeld <jason@zx2c4.com>.\n", ver, runtime.GOOS, runtime.GOARCH)
 			return
 		}
@@ -294,9 +286,6 @@ func main() {
 	)
 
 	ver := appVer
-	if runtimeVersion != "" {
-		ver = runtimeVersion
-	}
 	logger.Verbosef("启动 wireguard-go 版本 %s", ver)
 
 	if err != nil {
