@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"net/netip"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
 
+	logs "github.com/tea4go/gh/log4go"
 	"golang.org/x/sys/windows"
 )
 
@@ -18,6 +21,9 @@ type netChangeEvent struct {
 	notifyType uint32
 	ifLuid     uint64
 	ifIndex    uint32
+	ifName     string
+	family     uint16
+	address    string
 }
 
 type windowsNetworkMonitor struct {
@@ -28,7 +34,7 @@ type windowsNetworkMonitor struct {
 	stop                chan struct{}
 	done                chan struct{}
 	closeOnce           sync.Once
-	onChange            func()
+	onChange            func(summary string)
 	excludedLuids       map[uint64]string
 	lastDetailLogged    atomic.Bool
 }
@@ -53,51 +59,105 @@ func notificationTypeString(t uint32) string {
 	}
 }
 
-func luidToIndex(luid uint64) uint32 {
-	var idx uint32
-	if luid == 0 {
-		return 0
+func addressFamilyString(family uint16) string {
+	switch family {
+	case windows.AF_INET:
+		return "IPv4"
+	case windows.AF_INET6:
+		return "IPv6"
+	case 0:
+		return ""
+	default:
+		return fmt.Sprintf("Family(%d)", family)
 	}
-	if err := windows.LuidToIndex((*windows.LUID)(unsafe.Pointer(&luid)), &idx); err != nil {
-		return 0
-	}
-	return idx
 }
 
-func interfaceNameByLuid(luid uint64) string {
-	if luid == 0 {
+func interfaceNameByLuid(luid uint64, ifIndex uint32) string {
+	if luid == 0 && ifIndex == 0 {
+		return "N/A"
+	}
+	row := windows.MibIfRow2{
+		InterfaceLuid:  luid,
+		InterfaceIndex: ifIndex,
+	}
+	if err := windows.GetIfEntry2Ex(windows.MibIfEntryNormalWithoutStatistics, &row); err == nil {
+		if name := windows.UTF16ToString(row.Alias[:]); name != "" {
+			return name
+		}
+		if name := windows.UTF16ToString(row.Description[:]); name != "" {
+			return name
+		}
+		if row.InterfaceIndex != 0 {
+			return fmt.Sprintf("IfIndex#%d", row.InterfaceIndex)
+		}
+	}
+	if ifIndex != 0 {
+		return fmt.Sprintf("IfIndex#%d", ifIndex)
+	}
+	return fmt.Sprintf("Luid#%x", luid)
+}
+
+func sockaddrAddressString(raw windows.RawSockaddrInet6, prefixLen uint8) string {
+	switch raw.Family {
+	case windows.AF_INET:
+		addr := netip.AddrFrom4([4]byte{raw.Addr[0], raw.Addr[1], raw.Addr[2], raw.Addr[3]})
+		return fmt.Sprintf("%s/%d", addr.String(), prefixLen)
+	case windows.AF_INET6:
+		addr := netip.AddrFrom16(raw.Addr)
+		if raw.Scope_id != 0 {
+			addr = addr.WithZone(fmt.Sprintf("%d", raw.Scope_id))
+		}
+		return fmt.Sprintf("%s/%d", addr.String(), prefixLen)
+	default:
 		return ""
 	}
-	var idx uint32
-	if err := windows.LuidToIndex((*windows.LUID)(unsafe.Pointer(&luid)), &idx); err != nil {
-		return fmt.Sprintf("Luid#%x", luid)
+}
+
+func formatNetChangeDetail(evt netChangeEvent) string {
+	ifName := evt.ifName
+	if ifName == "" {
+		ifName = interfaceNameByLuid(evt.ifLuid, evt.ifIndex)
 	}
-	var size uint32 = 0
-	_ = windows.GetIfEntry2(&windows.MibIfRow2{InterfaceIndex: idx})
-	buf := make([]uint16, 256)
-	size = uint32(len(buf))
-	if err := windows.GetIfAliasByIndex(idx, &buf[0], &size); err == nil && size > 0 {
-		return windows.UTF16ToString(buf[:size])
+	detail := fmt.Sprintf("%s-%s@%s", evt.kind, notificationTypeString(evt.notifyType), ifName)
+	parts := make([]string, 0, 2)
+	if family := addressFamilyString(evt.family); family != "" {
+		parts = append(parts, "family="+family)
 	}
-	if err := windows.GetIfNameByIndex(idx, &buf[0], &size); err == nil && size > 0 {
-		return windows.UTF16ToString(buf[:size])
+	if evt.address != "" {
+		parts = append(parts, "addr="+evt.address)
 	}
-	return fmt.Sprintf("IfIndex#%d", idx)
+	if len(parts) == 0 {
+		return detail
+	}
+	return fmt.Sprintf("%s(%s)", detail, strings.Join(parts, ", "))
+}
+
+func formatNetChangeSummary(eventCount int, details []string) string {
+	if len(details) == 0 {
+		return fmt.Sprintf("%d 次系统通知", eventCount)
+	}
+	return fmt.Sprintf("%d 次系统通知: %s", eventCount, strings.Join(details, "; "))
 }
 
 var windowsInterfaceChangeCallback = syscall.NewCallback(func(callerContext, rowPtr uintptr, notificationType uint32) uintptr {
 	var ifLuid uint64
 	var ifIndex uint32
+	var ifName string
+	var family uint16
 	if rowPtr != 0 {
 		row := (*windows.MibIpInterfaceRow)(unsafe.Pointer(rowPtr))
 		ifLuid = row.InterfaceLuid
 		ifIndex = row.InterfaceIndex
+		family = row.Family
+		ifName = interfaceNameByLuid(ifLuid, ifIndex)
 	}
 	enqueueWindowsNetworkChange(callerContext, netChangeEvent{
 		kind:       "IpInterface",
 		notifyType: notificationType,
 		ifLuid:     ifLuid,
 		ifIndex:    ifIndex,
+		ifName:     ifName,
+		family:     family,
 	})
 	return 0
 })
@@ -105,32 +165,41 @@ var windowsInterfaceChangeCallback = syscall.NewCallback(func(callerContext, row
 var windowsUnicastChangeCallback = syscall.NewCallback(func(callerContext, rowPtr uintptr, notificationType uint32) uintptr {
 	var ifLuid uint64
 	var ifIndex uint32
+	var ifName string
+	var family uint16
+	var address string
 	if rowPtr != 0 {
 		row := (*windows.MibUnicastIpAddressRow)(unsafe.Pointer(rowPtr))
 		ifLuid = row.InterfaceLuid
 		ifIndex = row.InterfaceIndex
+		family = row.Address.Family
+		ifName = interfaceNameByLuid(ifLuid, ifIndex)
+		address = sockaddrAddressString(row.Address, row.OnLinkPrefixLength)
 	}
 	enqueueWindowsNetworkChange(callerContext, netChangeEvent{
 		kind:       "UnicastAddr",
 		notifyType: notificationType,
 		ifLuid:     ifLuid,
 		ifIndex:    ifIndex,
+		ifName:     ifName,
+		family:     family,
+		address:    address,
 	})
 	return 0
 })
 
-func startWindowsNetworkMonitor(onChange func(), excludedLuids map[uint64]string) (*windowsNetworkMonitor, error) {
+func startWindowsNetworkMonitor(onChange func(summary string), excludedLuids map[uint64]string) (*windowsNetworkMonitor, error) {
 	monitor := &windowsNetworkMonitor{
-		token:   windowsNetworkMonitorSeq.Add(1),
-		changes: make(chan netChangeEvent, 16),
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
-		onChange: func() {
-			if onChange != nil {
-				onChange()
-			}
-		},
+		token:         windowsNetworkMonitorSeq.Add(1),
+		changes:       make(chan netChangeEvent, 16),
+		stop:          make(chan struct{}),
+		done:          make(chan struct{}),
 		excludedLuids: excludedLuids,
+	}
+	if onChange != nil {
+		monitor.onChange = func(summary string) {
+			onChange(summary)
+		}
 	}
 	windowsNetworkMonitors.Store(monitor.token, monitor)
 
@@ -187,10 +256,9 @@ func enqueueWindowsNetworkChange(token uintptr, evt netChangeEvent) {
 	}
 }
 
-func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{}, debounce time.Duration, onChange func(), excludedLuids map[uint64]string) {
+func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{}, debounce time.Duration, onChange func(summary string), excludedLuids map[uint64]string) {
 	var timer *time.Timer
 	var timerC <-chan time.Time
-	var lastEvt netChangeEvent
 	var eventsInWindow int
 	var nonExcludedEvents []netChangeEvent
 
@@ -198,13 +266,10 @@ func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{},
 		select {
 		case evt := <-changes:
 			eventsInWindow++
-			lastEvt = evt
 			if len(nonExcludedEvents) < 8 {
 				nonExcludedEvents = append(nonExcludedEvents, evt)
 			}
-			ifName := interfaceNameByLuid(evt.ifLuid)
-			logs.Debug("[NetMon] %s %s ifLuid=%x ifIndex=%d name=%q",
-				evt.kind, notificationTypeString(evt.notifyType), evt.ifLuid, evt.ifIndex, ifName)
+			logs.Debug("[NetMon] %s", formatNetChangeDetail(evt))
 			if timer == nil {
 				timer = time.NewTimer(debounce)
 				timerC = timer.C
@@ -229,9 +294,7 @@ func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{},
 			for _, e := range nonExcludedEvents {
 				if _, ok := excludedLuids[e.ifLuid]; !ok {
 					realCount++
-					ifName := interfaceNameByLuid(e.ifLuid)
-					details = append(details, fmt.Sprintf("%s-%s@%s",
-						e.kind, notificationTypeString(e.notifyType), ifName))
+					details = append(details, formatNetChangeDetail(e))
 				}
 			}
 			nonExcludedEvents = nonExcludedEvents[:0]
@@ -239,12 +302,11 @@ func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{},
 			if realCount == 0 {
 				continue
 			}
-			logs.Verbosef("[NetMon] 防抖窗口内共 %d 次系统通知，有效 %d 次: %v",
-				eventsInWindow, realCount, details)
+			summary := formatNetChangeSummary(realCount, details)
+			logs.Debug("[NetMon] 防抖窗口内有效 %d 次: %s", realCount, summary)
 			if onChange != nil {
-				onChange()
+				onChange(summary)
 			}
-			lastEvt = netChangeEvent{}
 
 		case <-stop:
 			if timer != nil {

@@ -187,7 +187,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	if native, ok := tunDevice.(*tun.NativeTun); ok {
 		tunLuid = native.LUID()
 		if tunLuid != 0 {
-			logs.Verbosef("[%s] 虚拟网卡 LUID = 0x%x", interfaceName, tunLuid)
+			logs.Debug("[%s] 虚拟网卡 LUID = 0x%x", interfaceName, tunLuid)
 		}
 	}
 
@@ -410,8 +410,12 @@ func main() {
 		}
 		var err error
 		networkMonitor, err = startWindowsNetworkMonitor(
-			func() {
-				logs.Notice("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
+			func(summary string) {
+				if summary == "" {
+					logs.Notice("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
+				} else {
+					logs.Notice("检测到本地网络变化（%s），开始刷新 WireGuard UDP 绑定", summary)
+				}
 				for _, ri := range running {
 					if err := ri.device.HandleNetworkChange(); err != nil {
 						logs.Error("[%s] 网络变化恢复失败: %v", ri.name, err)
@@ -424,7 +428,7 @@ func main() {
 			logs.Error("启动 Windows 网络变化监视失败: %v", err)
 		} else {
 			if len(excludedLuids) > 0 {
-				logs.Verbosef("[NetMon] 已排除 %d 个虚拟网卡的自触发通知: %v", len(excludedLuids), excludedLuids)
+				logs.Debug("[NetMon] 已排除 %d 个虚拟网卡的自触发通知: %v", len(excludedLuids), excludedLuids)
 			}
 			logs.Notice("Windows 网络变化监视已启动")
 		}
