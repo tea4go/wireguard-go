@@ -411,7 +411,7 @@ func main() {
 		var err error
 		networkMonitor, err = startWindowsNetworkMonitor(
 			func(changeCount int, details []string) {
-				logs.Notice("检测到本地网络变化（%d 个事件），开始刷新 WireGuard UDP 绑定", changeCount)
+				logs.Notice("检测到本地网络变化(%d 个事件)，开始刷新 WireGuard UDP 绑定", changeCount)
 
 				for _, ri := range running {
 					if err := ri.device.HandleNetworkChange(); err != nil {
@@ -427,7 +427,7 @@ func main() {
 			if len(excludedLuids) > 0 {
 				logs.Debug("[NetMon] 已排除 %d 个虚拟网卡的自触发通知: %v", len(excludedLuids), excludedLuids)
 			}
-			logs.Notice("Windows 网络变化监视已启动，去抖时间 %v", windowsNetworkChangeDebounce/2)
+			logs.Notice("Windows 网络变化监视已启动，去抖时间 %v", windowsNetworkChangeDebounce)
 		}
 	}
 

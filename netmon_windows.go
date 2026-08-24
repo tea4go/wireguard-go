@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const windowsNetworkChangeDebounce = 15000 * time.Millisecond
+const windowsNetworkChangeDebounce = 8000 * time.Millisecond
 
 type netChangeEvent struct {
 	kind       string
