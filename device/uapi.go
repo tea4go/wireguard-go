@@ -202,7 +202,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set private_key: %w", err)
 		}
-		device.log.Verbosef("UAPI：正在更新私钥")
+		device.log.Info("UAPI：正在更新私钥")
 		device.SetPrivateKey(sk)
 
 	case "listen_port":
@@ -212,7 +212,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		}
 
 		// update port and rebind
-		device.log.Verbosef("UAPI：正在更新监听端口")
+		device.log.Info("UAPI：正在更新监听端口")
 
 		device.net.Lock()
 		device.net.port = uint16(port)
@@ -228,7 +228,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 			return ipcErrorf(ipc.IpcErrorInvalid, "invalid fwmark: %w", err)
 		}
 
-		device.log.Verbosef("UAPI：正在更新 fwmark")
+		device.log.Info("UAPI：正在更新 fwmark")
 		if err := device.BindSetMark(uint32(mark)); err != nil {
 			return ipcErrorf(ipc.IpcErrorPortInUse, "failed to update fwmark: %w", err)
 		}
@@ -237,7 +237,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		if value != "true" {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set replace_peers, invalid value: %v", value)
 		}
-		device.log.Verbosef("UAPI：正在移除所有对端")
+		device.log.Notice("UAPI：正在移除所有对端")
 		device.RemoveAllPeers()
 
 	default:
@@ -296,7 +296,7 @@ func (device *Device) handlePublicKeyLine(peer *ipcSetPeer, value string) error 
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to create new peer: %w", err)
 		}
-		device.log.Verbosef("%v - UAPI：已创建", peer.Peer)
+		device.log.Notice("%v - UAPI：已创建", peer.Peer)
 	}
 	return nil
 }
@@ -320,14 +320,14 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set remove, invalid value: %v", value)
 		}
 		if !peer.dummy {
-			device.log.Verbosef("%v - UAPI：正在移除", peer.Peer)
+			device.log.Notice("%v - UAPI：正在移除", peer.Peer)
 			device.RemovePeer(peer.handshake.remoteStatic)
 		}
 		peer.Peer = &Peer{}
 		peer.dummy = true
 
 	case "preshared_key":
-		device.log.Verbosef("%v - UAPI：正在更新预共享密钥", peer.Peer)
+		device.log.Info("%v - UAPI：正在更新预共享密钥", peer.Peer)
 
 		peer.handshake.mutex.Lock()
 		err := peer.handshake.presharedKey.FromHex(value)
@@ -338,7 +338,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		}
 
 	case "endpoint":
-		device.log.Verbosef("%v - UAPI：正在更新端点", peer.Peer)
+		device.log.Info("%v - UAPI：正在更新端点", peer.Peer)
 		endpoint, err := device.net.bind.ParseEndpoint(value)
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set endpoint %v: %w", value, err)
@@ -348,7 +348,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		peer.endpoint.val = endpoint
 
 	case "persistent_keepalive_interval":
-		device.log.Verbosef("%v - UAPI：正在更新持久保活间隔", peer.Peer)
+		device.log.Info("%v - UAPI：正在更新持久保活间隔", peer.Peer)
 
 		secs, err := strconv.ParseUint(value, 10, 16)
 		if err != nil {
@@ -361,7 +361,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		peer.pkaOn = old == 0 && secs != 0
 
 	case "replace_allowed_ips":
-		device.log.Verbosef("%v - UAPI：正在移除所有 allowed_ip", peer.Peer)
+		device.log.Info("%v - UAPI：正在移除所有 allowed_ip", peer.Peer)
 		if value != "true" {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to replace allowedips, invalid value: %v", value)
 		}
@@ -378,7 +378,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 			verb = "移除"
 			value = value[1:]
 		}
-		device.log.Verbosef("%v - UAPI：正在%s allowed_ip", peer.Peer, verb)
+		device.log.Info("%v - UAPI：正在%s allowed_ip", peer.Peer, verb)
 		prefix, err := netip.ParsePrefix(value)
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set allowed ip: %w", err)

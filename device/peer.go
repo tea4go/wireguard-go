@@ -185,7 +185,7 @@ func (peer *Peer) Start() {
 	}
 
 	device := peer.device
-	device.log.Verbosef("%v - 正在启动", peer)
+	device.log.Notice("%v - 正在启动", peer)
 
 	// reset routine state
 	peer.stopping.Wait()
@@ -264,7 +264,7 @@ func (peer *Peer) Stop() {
 		return
 	}
 
-	peer.device.log.Verbosef("%v - 正在停止", peer)
+	peer.device.log.Notice("%v - 正在停止", peer)
 
 	peer.timersStop()
 	// Signal that RoutineSequentialSender and RoutineSequentialReceiver should exit.

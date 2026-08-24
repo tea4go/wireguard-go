@@ -115,7 +115,7 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.log.Verbosef("%v - 正在发送握手发起消息", peer)
+	peer.device.log.Info("%v - 正在发送握手发起消息", peer)
 
 	msg, err := peer.device.CreateMessageInitiation(peer)
 	if err != nil {
@@ -144,7 +144,7 @@ func (peer *Peer) SendHandshakeResponse() error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.log.Verbosef("%v - 正在发送握手响应消息", peer)
+	peer.device.log.Info("%v - 正在发送握手响应消息", peer)
 
 	response, err := peer.device.CreateMessageResponse(peer)
 	if err != nil {
@@ -266,7 +266,7 @@ func (device *Device) RoutineReadFromTUN() {
 				peer = device.allowedips.Lookup(dst)
 
 			default:
-				device.log.Verbosef("收到 IP 版本未知的数据包")
+				device.log.Warningf("收到 IP 版本未知的数据包")
 			}
 
 			if peer == nil {
@@ -298,10 +298,7 @@ func (device *Device) RoutineReadFromTUN() {
 
 		if readErr != nil {
 			if errors.Is(readErr, tun.ErrTooManySegments) {
-				// TODO: record stat for this
-				// This will happen if MSS is surprisingly small (< 576)
-				// coincident with reasonably high throughput.
-				device.log.Verbosef("多分段读取时丢弃了部分数据包, %v", readErr)
+				device.log.Warningf("多分段读取时丢弃了部分数据包, %v", readErr)
 				continue
 			}
 			if !device.isClosed() {
@@ -528,7 +525,7 @@ func (peer *Peer) RoutineSequentialSender(maxBatchSize int) {
 		if err != nil {
 			var errGSO conn.ErrUDPGSODisabled
 			if errors.As(err, &errGSO) {
-				device.log.Verbosef("发送数据包时发生错误, %v", err)
+				device.log.Warningf("发送数据包时发生错误, %v", err)
 				err = errGSO.RetryErr
 			}
 		}

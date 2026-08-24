@@ -113,7 +113,7 @@ func (device *Device) RoutineReceiveIncoming(maxBatchSize int, recv conn.Receive
 			if errors.Is(err, net.ErrClosed) {
 				return
 			}
-			device.log.Verbosef("接收 %s 数据包失败, %v", recvName, utils.GetNetError(err))
+			device.log.Warningf("接收 %s 数据包失败, %v", recvName, utils.GetNetError(err))
 			if neterr, ok := err.(net.Error); ok && !neterr.Temporary() {
 				return
 			}
@@ -204,7 +204,7 @@ func (device *Device) RoutineReceiveIncoming(maxBatchSize int, recv conn.Receive
 				}
 
 			default:
-				device.log.Verbosef("收到未知类型的消息")
+				device.log.Warningf("收到未知类型的消息")
 				continue
 			}
 
@@ -239,8 +239,8 @@ func (device *Device) RoutineReceiveIncoming(maxBatchSize int, recv conn.Receive
 func (device *Device) RoutineDecryption(id int) {
 	var nonce [chacha20poly1305.NonceSize]byte
 
-	defer device.log.Verbosef("例程：解密工作线程 %d - 已停止", id)
-	device.log.Verbosef("例程：解密工作线程 %d - 已启动", id)
+	defer device.log.Verbosef("例程：解密工作线程 %3d - 已停止", id)
+	device.log.Verbosef("例程：解密工作线程 %3d - 已启动", id)
 
 	for elemsContainer := range device.queue.decryption.c {
 		for _, elem := range elemsContainer.elems {
@@ -289,7 +289,7 @@ func (device *Device) RoutineHandshake(id int) {
 			var reply MessageCookieReply
 			err := reply.unmarshal(elem.packet)
 			if err != nil {
-				device.log.Verbosef("解码 cookie 回复失败")
+				device.log.Warningf("解码 cookie 回复失败")
 				goto skip
 			}
 
@@ -306,7 +306,7 @@ func (device *Device) RoutineHandshake(id int) {
 			if peer := entry.peer; peer.isRunning.Load() {
 				device.log.Verbosef("正在接收来自 %s 的 cookie 响应", elem.endpoint.DstToString())
 				if !peer.cookieGenerator.ConsumeReply(&reply) {
-					device.log.Verbosef("无法解密无效的 cookie 响应")
+					device.log.Warningf("无法解密无效的 cookie 响应")
 				}
 			}
 
@@ -317,7 +317,7 @@ func (device *Device) RoutineHandshake(id int) {
 			// check mac fields and maybe ratelimit
 
 			if !device.cookieChecker.CheckMAC1(elem.packet) {
-				device.log.Verbosef("收到 mac1 无效的数据包")
+				device.log.Warningf("收到 mac1 无效的数据包")
 				goto skip
 			}
 
@@ -362,7 +362,7 @@ func (device *Device) RoutineHandshake(id int) {
 
 			peer := device.ConsumeMessageInitiation(&msg)
 			if peer == nil {
-				device.log.Verbosef("收到来自 %s 的无效握手发起消息", elem.endpoint.DstToString())
+				device.log.Warningf("收到来自 %s 的无效握手发起消息", elem.endpoint.DstToString())
 				goto skip
 			}
 
@@ -374,7 +374,7 @@ func (device *Device) RoutineHandshake(id int) {
 			// update endpoint
 			peer.SetEndpointFromPacket(elem.endpoint)
 
-			device.log.Verbosef("%v - 收到握手发起消息", peer)
+			device.log.Info("%v - 收到握手发起消息", peer)
 			peer.rxBytes.Add(uint64(len(elem.packet)))
 
 			peer.SendHandshakeResponse()
@@ -394,14 +394,14 @@ func (device *Device) RoutineHandshake(id int) {
 
 			peer := device.ConsumeMessageResponse(&msg)
 			if peer == nil {
-				device.log.Verbosef("收到来自 %s 的无效握手响应消息", elem.endpoint.DstToString())
+				device.log.Warningf("收到来自 %s 的无效握手响应消息", elem.endpoint.DstToString())
 				goto skip
 			}
 
 			// update endpoint
 			peer.SetEndpointFromPacket(elem.endpoint)
 
-			device.log.Verbosef("%v - 收到握手响应消息", peer)
+			device.log.Info("%v - 收到握手响应消息", peer)
 			peer.rxBytes.Add(uint64(len(elem.packet)))
 
 			// update timers
@@ -482,7 +482,7 @@ func (peer *Peer) RoutineSequentialReceiver(maxBatchSize int) {
 				elem.packet = elem.packet[:length]
 				src := elem.packet[IPv4offsetSrc : IPv4offsetSrc+net.IPv4len]
 				if device.allowedips.Lookup(src) != peer {
-					device.log.Verbosef("收到来自 %v 的源地址不允许的 IPv4 数据包", peer)
+					device.log.Warningf("收到来自 %v 的源地址不允许的 IPv4 数据包", peer)
 					continue
 				}
 
@@ -499,12 +499,12 @@ func (peer *Peer) RoutineSequentialReceiver(maxBatchSize int) {
 				elem.packet = elem.packet[:length]
 				src := elem.packet[IPv6offsetSrc : IPv6offsetSrc+net.IPv6len]
 				if device.allowedips.Lookup(src) != peer {
-					device.log.Verbosef("收到来自 %v 的源地址不允许的 IPv6 数据包", peer)
+					device.log.Warningf("收到来自 %v 的源地址不允许的 IPv6 数据包", peer)
 					continue
 				}
 
 			default:
-				device.log.Verbosef("收到来自 %v 的 IP 版本无效的数据包", peer)
+				device.log.Warningf("收到来自 %v 的 IP 版本无效的数据包", peer)
 				continue
 			}
 

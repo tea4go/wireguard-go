@@ -24,7 +24,7 @@ func (device *Device) RoutineTUNEventReader() {
 				continue
 			}
 			if mtu < 0 {
-				device.log.Errorf("MTU 未更新为负值, %v", mtu)
+				device.log.Warningf("MTU 未更新为负值, %v", mtu)
 				continue
 			}
 			var tooLarge string
@@ -34,17 +34,17 @@ func (device *Device) RoutineTUNEventReader() {
 			}
 			old := device.tun.mtu.Swap(int32(mtu))
 			if int(old) != mtu {
-				device.log.Verbosef("MTU 已更新, %v%s", mtu, tooLarge)
+				device.log.Info("MTU 已更新, %v%s", mtu, tooLarge)
 			}
 		}
 
 		if event&tun.EventUp != 0 {
-			device.log.Verbosef("收到接口启动请求")
+			device.log.Notice("收到接口启动请求")
 			device.Up()
 		}
 
 		if event&tun.EventDown != 0 {
-			device.log.Verbosef("收到接口停止请求")
+			device.log.Notice("收到接口停止请求")
 			device.Down()
 		}
 	}
