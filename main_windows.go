@@ -53,7 +53,6 @@ func printFullUsage() {
 	fmt.Printf("WireGuard-Go for Windows  用户态 WireGuard 守护进程\n")
 	fmt.Printf("版本    : %s\n", ver)
 	fmt.Printf("构建时间: %s\n", buildTime)
-	fmt.Printf("Beta    : %s\n", isBeta)
 	fmt.Printf("平台    : %s-%s\n\n", runtime.GOOS, runtime.GOARCH)
 
 	fmt.Printf("使用方法:\n")
@@ -61,29 +60,21 @@ func printFullUsage() {
 
 	fmt.Printf("选项:\n")
 	fmt.Printf("  -c, --confile <路径>   (必需) 指定配置文件（.conf 单接口 或 .zip 多接口打包）。\n")
-	fmt.Printf("                         也可通过 confile 环境变量指定。\n")
 	fmt.Printf("  -f, --foreground       前台模式：在当前控制台直接运行，不启动守护子进程。\n")
-	fmt.Printf("  -d, --daemon           (内部) 守护子进程标识，用户调用时请勿显式传入。\n")
-	fmt.Printf("                         默认无参启动（且未使用 -f）会自动 fork 带 -d 的子进程。\n")
 	fmt.Printf("  -q, --quit             停止当前正在运行的守护进程（通过 PID 文件匹配）。\n")
 	fmt.Printf("  -S, --status           查看守护进程运行状态：PID、启动时间、运行时长。\n")
 	fmt.Printf("  -h, --help             显示本帮助信息并退出。\n")
-	fmt.Printf("      --version          显示版本信息并退出。\n\n")
-
-	fmt.Printf("运行模式（默认行为 = 无 -f 时自动守护 + PID 文件管理）:\n")
-	fmt.Printf("  1) 直接运行，不加 -f : 父进程启动带 --daemon 的子进程后退出，\n")
-	fmt.Printf("                         子进程写入 %s PID 文件并真正执行 VPN。\n", pidFileWindows)
-	fmt.Printf("  2) -f / --foreground : 不 fork，在当前控制台直接运行，不写 PID 文件。\n")
+	fmt.Printf("运行模式:\n")
+	fmt.Printf("  1) 守护进程（默认）   : 父进程启动带 --daemon 的子进程后退出，\n")
+	fmt.Printf("  2) -f / --foreground : 不 fork，在当前控制台直接运行。\n")
 	fmt.Printf("  3) -q / --quit       : 读取 PID 文件 -> taskkill 进程 -> 删除 PID 文件。\n")
 	fmt.Printf("  4) -S / --status     : 读取 PID 文件 + tasklist 探测存活，并打印运行时长。\n\n")
 
-	fmt.Printf("环境变量（优先级 > 命令行默认值）:\n")
-	fmt.Printf("  confile                等效于 --confile；若命令行已传 --confile 则以命令行为准。\n")
-	fmt.Printf("  LOG_LEVEL              日志级别: verbose / debug / info / notice / warn / error / silent\n")
-	fmt.Printf("                         （默认 verbose，对应 device.LogLevelVerbose）\n")
-	fmt.Printf("  log_name               日志文件名标识，默认使用程序名，生成 ulog_<log_name>.txt\n")
-	fmt.Printf("  log_server             远程日志服务器 host:port，会透传给守护子进程。\n")
-	fmt.Printf("  RUN_CONFIG             runwin.ps1 / runwin.cmd 启动时传递的配置路径。\n\n")
+	fmt.Printf("环境变量 / 通用 log4go 参数:\n")
+	fmt.Printf("  confile                   等效于 --confile；若命令行已传 --confile 则以命令行为准。\n")
+	fmt.Printf("  log_level                 日志级别 (0-7, 数字越大越详细, 默认 5=Notice)\n")
+	fmt.Printf("  log_name                  日志文件名标识，默认使用程序名，生成 ulog_<log_name>.txt\n")
+	fmt.Printf("  log_server                远程日志服务器 host:port，会透传给守护子进程。\n")
 
 	fmt.Printf("示例:\n")
 	fmt.Printf("  %s -c conf\\wgtun1.conf                        # 自动守护模式加载单配置\n", exeName)
@@ -219,9 +210,11 @@ func main() {
 			if isBeta == "" {
 				isBeta = "false"
 			}
-			fmt.Printf("wireguard-go %s\n", ver)
+			fmt.Printf("%s %s\n", appName, ver)
 			fmt.Printf("  Build Time : %s\n", buildTime)
 			fmt.Printf("  Platform   : %s-%s\n\n", runtime.GOOS, runtime.GOARCH)
+			fmt.Printf("更多信息: https://www.wireguard.com/\n")
+			fmt.Printf("版权所有 (C) Jason A. Donenfeld <jason@zx2c4.com> 及本修改版贡献者。\n")
 			os.Exit(ExitSetupSuccess)
 		}
 	}
@@ -293,8 +286,8 @@ func main() {
 		} else {
 			extraEnv["log_name"] = appName + "_daemon"
 		}
-		if lv := os.Getenv("LOG_LEVEL"); lv != "" {
-			extraEnv["LOG_LEVEL"] = lv
+		if lv := os.Getenv("log_level"); lv != "" {
+			extraEnv["log_level"] = lv
 		}
 		if ls := os.Getenv("log_server"); ls != "" {
 			extraEnv["log_server"] = ls

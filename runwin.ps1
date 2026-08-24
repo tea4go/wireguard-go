@@ -26,7 +26,7 @@ if (-not (Test-Path $env:GOTMPDIR)) { New-Item -ItemType Directory -Path $env:GO
 #  Overridable env vars (set before calling this script):
 #    APP_TAG     - force build version (e.g. v3.0.9), skips VERSION.txt auto-increment
 #    IS_BETA     - "true" or empty (default: empty, align with Makefile)
-#    LOG_LEVEL   - verbose/debug/info/notice/warn/error/silent
+#    log_level   - numeric 0..7 (default 5=Notice, 7=Debug/Verbose)
 #    RUN_CONFIG  - full path to the .conf/.zip config file
 #  Persistent version file:
 #    VERSION.txt at project root (SCRIPT_DIR) holds last MAJOR.MINOR.PATCH;
@@ -34,7 +34,7 @@ if (-not (Test-Path $env:GOTMPDIR)) { New-Item -ItemType Directory -Path $env:GO
 #      e.g. v3.0.9 -> v3.1.0 ; v3.9.9 -> v4.0.0
 # ============================================================
 if ([string]::IsNullOrWhiteSpace($env:IS_BETA))     { $env:IS_BETA     = 'false' }
-if ([string]::IsNullOrWhiteSpace($env:LOG_LEVEL))   { $env:LOG_LEVEL   = 'verbose' }
+if ([string]::IsNullOrWhiteSpace($env:log_level))   { $env:log_level   = '5' }
 if ([string]::IsNullOrWhiteSpace($env:RUN_CONFIG))  { $env:RUN_CONFIG  = Join-Path $SCRIPT_DIR 'conf\wgtun1.conf' }
 
 $VERSION_FILE = Join-Path $SCRIPT_DIR 'VERSION.txt'
@@ -118,7 +118,7 @@ if ($env:IS_BETA -eq 'true') {
 Write-Host "Build Time  : $BuildTime"
 Write-Host "Beta        : $($env:IS_BETA)"
 Write-Host "Platform    : $GOOS_T/$GOARCH_T"
-Write-Host "LogLevel    : $($env:LOG_LEVEL)"
+Write-Host "LogLevel    : $($env:log_level) (0=Emergency..5=Notice..7=Debug/Verbose)"
 Write-Host "Config      : $RUN_CFG_USE"
 Write-Host "Output      : $RUN_EXE"
 Write-Host '======================================================='

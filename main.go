@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 
+	logs "github.com/tea4go/gh/log4go"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
@@ -74,27 +75,27 @@ func printFullUsage() {
 	fmt.Printf("  接口名称               TUN 接口名。若系统已存在同名接口则直接复用，\n")
 	fmt.Printf("                         否则由内核/驱动创建。\n\n")
 
-	fmt.Printf("环境变量:\n")
-	fmt.Printf("  LOG_LEVEL                 日志级别\n")
-	fmt.Printf("                              verbose / debug  => LogLevelVerbose\n")
-	fmt.Printf("                              info             => LogLevelInfo\n")
-	fmt.Printf("                              notice           => LogLevelNotice (默认)\n")
-	fmt.Printf("                              warning / warn   => LogLevelWarning\n")
-	fmt.Printf("                              error            => LogLevelError\n")
-	fmt.Printf("                              critical         => LogLevelCritical\n")
-	fmt.Printf("                              alert            => LogLevelAlert\n")
-	fmt.Printf("                              emergency        => LogLevelEmergency\n")
-	fmt.Printf("                              silent           => LogLevelSilent\n")
+	fmt.Printf("环境变量 / 通用 log4go 参数:\n")
+	fmt.Printf("  log_level (或 -l 数值)   日志级别 (0-7, 数字越大越详细, 默认 5=Notice)\n")
+	fmt.Printf("                              0 emergency   => LogLevelEmergency\n")
+	fmt.Printf("                              1 alert       => LogLevelAlert\n")
+	fmt.Printf("                              2 critical    => LogLevelCritical\n")
+	fmt.Printf("                              3 error       => LogLevelError\n")
+	fmt.Printf("                              4 warning     => LogLevelWarning\n")
+	fmt.Printf("                              5 notice      => LogLevelNotice (默认)\n")
+	fmt.Printf("                              6 info        => LogLevelInfo\n")
+	fmt.Printf("                              7 debug       => LogLevelVerbose\n")
 	fmt.Printf("  WG_TUN_FD                 (内部) 父进程传递已打开的 TUN 文件描述符。\n")
 	fmt.Printf("  WG_UAPI_FD                (内部) 父进程传递已打开的 UAPI socket 文件描述符。\n")
 	fmt.Printf("  WG_PROCESS_FOREGROUND=1   等效于 -f，前台模式。\n")
 	fmt.Printf("  log_server                远程日志服务器 host:port，透传给守护子进程。\n")
-	fmt.Printf("  log_name                  日志文件名标识，透传给守护子进程。\n\n")
+	fmt.Printf("  log_name (-N)             日志文件名标识，透传给守护子进程。\n\n")
 
 	fmt.Printf("示例:\n")
 	fmt.Printf("  %s wg0                                   # 自动守护模式启动接口 wg0\n", exeName)
 	fmt.Printf("  %s -f wg0                                # 前台模式启动接口 wg0\n", exeName)
-	fmt.Printf("  LOG_LEVEL=info %s -f wg0                 # 指定日志级别 + 前台运行\n", exeName)
+	fmt.Printf("  log_level=6 %s -f wg0                    # 日志级别=Info + 前台运行\n", exeName)
+	fmt.Printf("  %s -l 7 -f wg0                           # 通过 -l flag 设置日志级别=Debug/Verbose\n", exeName)
 	fmt.Printf("  %s -S                                    # 查看守护状态\n", exeName)
 	fmt.Printf("  %s -q                                    # 停止守护进程\n\n", exeName)
 
@@ -192,22 +193,21 @@ func main() {
 	}
 
 	levelStr := ""
-	if lv := os.Getenv("LOG_LEVEL"); lv != "" {
-		levelStr = fmt.Sprintf("LOG_LEVEL=%s", lv)
-	}
+	lvNum := logs.GetParamInt("log_level", 5)
+	levelStr = fmt.Sprintf("log_level=%d", lvNum)
 	fmt.Fprintf(os.Stderr, "启动参数: foreground=%v daemon=%v iface=%s %s\n", foreground, isDaemon, interfaceName, levelStr)
 
 	if !foreground && !isDaemon {
 		daemonMgr := NewDaemonManager()
 		extraEnv := map[string]string{}
-		if lv := os.Getenv("LOG_LEVEL"); lv != "" {
-			extraEnv["LOG_LEVEL"] = lv
-		}
 		if ls := os.Getenv("log_server"); ls != "" {
 			extraEnv["log_server"] = ls
 		}
 		if ln := os.Getenv("log_name"); ln != "" {
 			extraEnv["log_name"] = ln
+		}
+		if lv := os.Getenv("log_level"); lv != "" {
+			extraEnv["log_level"] = lv
 		}
 		if err := daemonMgr.StartDaemon(extraEnv); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -225,31 +225,14 @@ func main() {
 		defer daemonMgr.RemovePidFile()
 	}
 
-	// get log level（根据 logger.go 新增的多级常量做全映射，默认 Notice）
-
-	logLevel := func() int {
-		switch os.Getenv("LOG_LEVEL") {
-		case "verbose", "debug":
-			return device.LogLevelVerbose
-		case "info":
-			return device.LogLevelInfo
-		case "notice":
-			return device.LogLevelNotice
-		case "warning", "warn":
-			return device.LogLevelWarning
-		case "error":
-			return device.LogLevelError
-		case "critical":
-			return device.LogLevelCritical
-		case "alert":
-			return device.LogLevelAlert
-		case "emergency":
-			return device.LogLevelEmergency
-		case "silent":
-			return device.LogLevelSilent
-		}
-		return device.LogLevelNotice
-	}()
+	log4goLevel := logs.GetParamInt("log_level", 5)
+	if log4goLevel < 0 {
+		log4goLevel = 5
+	}
+	if log4goLevel > 7 {
+		log4goLevel = 7
+	}
+	logLevel := log4goLevel + 1
 
 	// open TUN device (or use supplied fd)
 	tdev, err := func() (tun.Device, error) {

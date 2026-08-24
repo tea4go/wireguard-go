@@ -7,3 +7,4 @@ conf/
 .gocache/
 .gotmp/
 .gomodcache/
+wireguard-go.pid
