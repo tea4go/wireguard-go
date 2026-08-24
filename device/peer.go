@@ -8,6 +8,7 @@ package device
 import (
 	"container/list"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -160,7 +161,7 @@ func (peer *Peer) String() string {
 	b64 := func(input byte) byte {
 		return input + 'A' + byte(((25-int(input))>>8)&6) - byte(((51-int(input))>>8)&75) - byte(((61-int(input))>>8)&15) + byte(((62-int(input))>>8)&3)
 	}
-	b := []byte("Peer(____…____)")
+	b := []byte("Peer(____…____")
 	const first = len("peer(")
 	const second = len("peer(____…")
 	b[first+0] = b64((src[0] >> 2) & 63)
@@ -171,7 +172,7 @@ func (peer *Peer) String() string {
 	b[second+1] = b64((src[30] >> 2) & 63)
 	b[second+2] = b64(((src[30] << 4) | (src[31] >> 4)) & 63)
 	b[second+3] = b64((src[31] << 2) & 63)
-	return string(b)
+	return string(b) + fmt.Sprint("-%s)", peer.cookieGenerator)
 }
 
 func (peer *Peer) Start() {
