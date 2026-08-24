@@ -33,7 +33,7 @@ if (-not (Test-Path $env:GOTMPDIR)) { New-Item -ItemType Directory -Path $env:GO
 #    each build auto-increments PATCH, carrying over when any digit > 9
 #      e.g. v3.0.9 -> v3.1.0 ; v3.9.9 -> v4.0.0
 # ============================================================
-if ([string]::IsNullOrWhiteSpace($env:IS_BETA))     { $env:IS_BETA     = '' }
+if ([string]::IsNullOrWhiteSpace($env:IS_BETA))     { $env:IS_BETA     = 'false' }
 if ([string]::IsNullOrWhiteSpace($env:LOG_LEVEL))   { $env:LOG_LEVEL   = 'verbose' }
 if ([string]::IsNullOrWhiteSpace($env:RUN_CONFIG))  { $env:RUN_CONFIG  = Join-Path $SCRIPT_DIR 'conf\wgtun1.conf' }
 
@@ -96,7 +96,11 @@ $now       = Get-Date
 $BuildTime = $now.ToString('yyyy-MM-dd(HH:mm:ss)')
 $_d        = $now.ToString('yyyyMMdd')
 $_t        = $now.ToString('HHmm')
-$APP_VER_FULL = "${APP_TAG}_B${_d}_${_t}"
+if ($env:IS_BETA -eq 'true') {
+    $APP_VER_FULL = "${APP_TAG}_B${_d}_${_t}"
+} else {
+    $APP_VER_FULL = $APP_TAG
+}
 
 # GOOS / GOARCH for banner
 $GOOS_T   = (& go env GOOS)   | Select-Object -First 1
@@ -106,7 +110,11 @@ Write-Host '======================================================='
 Write-Host "Project Dir : $SCRIPT_DIR"
 Write-Host "Version File: $VERSION_FILE"
 Write-Host "Build Tag   : $APP_TAG"
-Write-Host ("App Version : {0}       (example: v3.0.1_B20060930_0930)" -f $APP_VER_FULL)
+if ($env:IS_BETA -eq 'true') {
+    Write-Host ("App Version : {0}       (IS_BETA=true: v3.0.1_B20060930_0930)" -f $APP_VER_FULL)
+} else {
+    Write-Host ("App Version : {0}       (IS_BETA=false: v3.0.1 only)" -f $APP_VER_FULL)
+}
 Write-Host "Build Time  : $BuildTime"
 Write-Host "Beta        : $($env:IS_BETA)"
 Write-Host "Platform    : $GOOS_T/$GOARCH_T"
@@ -161,7 +169,6 @@ if (Test-Path $ALIAS_DIR) {
 }
 
 Write-Host '======================================================='
-Write-Host ("Starting {0} (log_level={1}, config={2})..." -f $OUT_EXE_NAME, $env:LOG_LEVEL, $RUN_CFG_USE)
 
 # ============================================================
 #  Admin check + elevate if needed

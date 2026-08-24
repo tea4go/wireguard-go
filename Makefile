@@ -42,7 +42,12 @@ endif
 # Final composed version strings
 BUILD_DATE ?= $(shell date -u +%Y%m%d)
 BUILD_HHMM ?= $(shell date -u +%H%M)
-APP_VER_FULL ?= $(APP_TAG)_B$(BUILD_DATE)_$(BUILD_HHMM)
+# APP_VER_FULL: IS_BETA=true -> v3.0.1_B20060930_0930 ; IS_BETA empty/false -> v3.0.1
+ifdef IS_BETA
+  APP_VER_FULL ?= $(APP_TAG)_B$(BUILD_DATE)_$(BUILD_HHMM)
+else
+  APP_VER_FULL ?= $(APP_TAG)
+endif
 BUILD_TIME ?= $(shell date -u '+%Y-%m-%d(%H:%M:%S)')
 IS_BETA ?=
 
@@ -107,7 +112,11 @@ showenv:
 	@echo "APP_TAG      = $(APP_TAG)       (MAJOR.MINOR.PATCH, each digit max=9, carry to next)"
 	@echo "BUILD_DATE   = $(BUILD_DATE)   (YYYYMMDD)"
 	@echo "BUILD_HHMM   = $(BUILD_HHMM)   (HHmm)"
-	@echo "APP_VER_FULL = $(APP_VER_FULL)   (example: v3.0.1_B20060930_0930)"
+ifdef IS_BETA
+	@echo "APP_VER_FULL = $(APP_VER_FULL)   (IS_BETA set: v3.0.1_B20060930_0930)"
+else
+	@echo "APP_VER_FULL = $(APP_VER_FULL)   (IS_BETA empty: v3.0.1 only)"
+endif
 	@echo "BUILD_TIME   = $(BUILD_TIME)   (yyyy-mm-dd(hh:mm:ss))"
 	@echo "IS_BETA      = $(IS_BETA)"
 	@echo "LDFLAGS      = $(LDFLAGS)"
