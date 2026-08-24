@@ -263,21 +263,21 @@ func parseInterfaceLine(iface *interfaceConfig, ignored map[string]struct{}, key
 	case "privatekey":
 		decoded, err := decodeBase64KeyToHex(value)
 		if err != nil {
-			return fmt.Errorf("%s:%d: 解析 Interface.PrivateKey 失败: %w", source, lineNo, err)
+			return fmt.Errorf("%s:%d: 解析 Interface.PrivateKey 失败, %w", source, lineNo, err)
 		}
 		iface.privateKey = decoded
 
 	case "listenport":
 		port, err := strconv.ParseUint(value, 10, 16)
 		if err != nil {
-			return fmt.Errorf("%s:%d: 解析 Interface.ListenPort 失败: %w", source, lineNo, err)
+			return fmt.Errorf("%s:%d: 解析 Interface.ListenPort 失败, %w", source, lineNo, err)
 		}
 		iface.listenPort = strconv.FormatUint(port, 10)
 
 	case "fwmark":
 		mark, err := strconv.ParseUint(value, 0, 32)
 		if err != nil {
-			return fmt.Errorf("%s:%d: 解析 Interface.FwMark 失败: %w", source, lineNo, err)
+			return fmt.Errorf("%s:%d: 解析 Interface.FwMark 失败, %w", source, lineNo, err)
 		}
 		iface.fwmark = strconv.FormatUint(mark, 10)
 
@@ -298,7 +298,7 @@ func parseInterfaceLine(iface *interfaceConfig, ignored map[string]struct{}, key
 			}
 			prefix, err := netip.ParsePrefix(part)
 			if err != nil {
-				return fmt.Errorf("%s:%d: 解析 Interface.Address 失败: %w", source, lineNo, err)
+				return fmt.Errorf("%s:%d: 解析 Interface.Address 失败, %w", source, lineNo, err)
 			}
 			parsed = append(parsed, prefix.String())
 		}
@@ -321,14 +321,14 @@ func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, so
 	case "publickey":
 		decoded, err := decodeBase64KeyToHex(value)
 		if err != nil {
-			return fmt.Errorf("%s:%d: 解析 Peer.PublicKey 失败: %w", source, lineNo, err)
+			return fmt.Errorf("%s:%d: 解析 Peer.PublicKey 失败, %w", source, lineNo, err)
 		}
 		peer.publicKey = decoded
 
 	case "presharedkey":
 		decoded, err := decodeBase64KeyToHex(value)
 		if err != nil {
-			return fmt.Errorf("%s:%d: 解析 Peer.PresharedKey 失败: %w", source, lineNo, err)
+			return fmt.Errorf("%s:%d: 解析 Peer.PresharedKey 失败, %w", source, lineNo, err)
 		}
 		peer.presharedKey = decoded
 
@@ -341,7 +341,7 @@ func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, so
 				continue
 			}
 			if _, err := netip.ParsePrefix(part); err != nil {
-				return fmt.Errorf("%s:%d: 解析 Peer.AllowedIPs 失败: %w", source, lineNo, err)
+				return fmt.Errorf("%s:%d: 解析 Peer.AllowedIPs 失败, %w", source, lineNo, err)
 			}
 			parsed = append(parsed, part)
 		}
@@ -364,7 +364,7 @@ func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, so
 		}
 		secs, err := strconv.ParseUint(value, 10, 16)
 		if err != nil {
-			return fmt.Errorf("%s:%d: 解析 Peer.PersistentKeepalive 失败: %w", source, lineNo, err)
+			return fmt.Errorf("%s:%d: 解析 Peer.PersistentKeepalive 失败, %w", source, lineNo, err)
 		}
 		peer.hasPersistentKeepaliveLine = true
 		peer.persistentKeepalive = strconv.FormatUint(secs, 10)

@@ -29,13 +29,13 @@ const utunControlName = "com.apple.net.utun_control"
 type NativeTun struct {
 	// name 保存接口名称，例如 "utun0"、"utun3" 等。
 	// 在 Name() 中通过 getsockopt 获取后缓存到此字段。
-	name        string
+	name string
 
 	// tunFile 是封装了 utun socket fd 的 *os.File 对象。
 	// 此 fd 通过 AF_SYSTEM + SOCK_DGRAM + SYSPROTO_CONTROL 创建，
 	// 然后 connect 到 com.apple.net.utun_control。
 	// Read/Write 实际的 IP 报文就是通过此 fd 进行的。
-	tunFile     *os.File
+	tunFile *os.File
 
 	// events 是对外发布接口事件的通道。
 	// 由 routineRouteListener 向此通道写入：
@@ -43,12 +43,12 @@ type NativeTun struct {
 	//   - EventDown     接口从 UP 变为 DOWN
 	//   - EventMTUUpdate 接口 MTU 值发生变化
 	// 通道容量为 10，属于有缓冲通道，避免事件丢失。
-	events      chan Event
+	events chan Event
 
 	// errors 用于传递后台 goroutine（routineRouteListener）中发生的错误。
 	// 例如 AF_ROUTE socket 读取失败、ioctl 失败等。
 	// 容量为 5，有缓冲防止写阻塞。
-	errors      chan error
+	errors chan error
 
 	// routeSocket 是 AF_ROUTE 域的原始 socket 描述符。
 	// macOS 的路由域 socket 可以订阅内核中的网络事件（如接口状态变化、
@@ -58,7 +58,7 @@ type NativeTun struct {
 
 	// closeOnce 保证 Close() 方法在并发调用时只执行一次实际关闭逻辑。
 	// 防止 tunFile 和 routeSocket 被重复 close 引发 panic。
-	closeOnce   sync.Once
+	closeOnce sync.Once
 }
 
 // routineRouteListener 是后台运行的事件监听 goroutine。
@@ -72,23 +72,24 @@ type NativeTun struct {
 //     通过此编号过滤掉其它接口的事件。
 //
 // 关于 macOS ifmsghdr 结构体字段在 data 字节数组中的偏移（64 位平台）：
-//   data[0..1]   ifm_msglen   uint16  整个消息的总长度（含头部）
-//   data[2]      ifm_version  uint8   消息版本号，通常为 RTM_VERSION
-//   data[3]      ifm_type     uint8   消息类型，这里只处理 RTM_IFINFO
-//   data[4..7]   ifm_addrs    int32   位掩码，表示后随哪些 sockaddr
-//   data[8..11]  ifm_flags    int32   接口标志位（IFF_UP / IFF_RUNNING 等）
-//   data[12..13] ifm_index    uint16  接口索引（ifindex）
-//   data[14..15] (填充对齐)
-//   data[16..19] ifm_snd_len  int32   发送队列长度
-//   data[20..23] ifm_snd_maxlen int32 发送队列最大长度
-//   data[24..27] ifm_snd_drops int32  发送丢包数
-//   以上是 if_data 结构起始部分。其中 data[24..27] 即 ifm_data.ifi_mtu
-//   （实际上 ifi_mtu 在 if_data 中的偏移是 0，而 if_data 在 ifmsghdr 中的
-//   偏移在 macOS 64 位上是 24 字节）
+//
+//	data[0..1]   ifm_msglen   uint16  整个消息的总长度（含头部）
+//	data[2]      ifm_version  uint8   消息版本号，通常为 RTM_VERSION
+//	data[3]      ifm_type     uint8   消息类型，这里只处理 RTM_IFINFO
+//	data[4..7]   ifm_addrs    int32   位掩码，表示后随哪些 sockaddr
+//	data[8..11]  ifm_flags    int32   接口标志位（IFF_UP / IFF_RUNNING 等）
+//	data[12..13] ifm_index    uint16  接口索引（ifindex）
+//	data[14..15] (填充对齐)
+//	data[16..19] ifm_snd_len  int32   发送队列长度
+//	data[20..23] ifm_snd_maxlen int32 发送队列最大长度
+//	data[24..27] ifm_snd_drops int32  发送丢包数
+//	以上是 if_data 结构起始部分。其中 data[24..27] 即 ifm_data.ifi_mtu
+//	（实际上 ifi_mtu 在 if_data 中的偏移是 0，而 if_data 在 ifmsghdr 中的
+//	偏移在 macOS 64 位上是 24 字节）
 func (tun *NativeTun) routineRouteListener(tunIfindex int) {
 	var (
 		// statusUp  缓存上一次检测到的接口 Up/Down 状态
-		statusUp  bool
+		statusUp bool
 
 		// statusMTU 缓存上一次检测到的接口 MTU 值
 		statusMTU int
@@ -160,17 +161,17 @@ func (tun *NativeTun) routineRouteListener(tunIfindex int) {
 //
 // macOS 的 utun 驱动不是通过打开 /dev/tunX 设备文件方式，
 // 而是使用 BSD 特有的 "Kernel Control API"：
-//   1. 调用 socket(AF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL) 创建控制 socket；
-//   2. 通过 ioctl CTLIOCGINFO 根据名称 com.apple.net.utun_control
-//      查到该内核控制模块的 ID；
-//   3. 构造 SockaddrCtl 结构体并 connect：
-//        - ID   = 查找到的内核控制器 ID
-//        - Unit = 想要绑定的 utun 编号 + 1（Unit 从 1 开始，
-//                 Unit=1 对应 utun0，Unit=4 对应 utun3，以此类推）
+//  1. 调用 socket(AF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL) 创建控制 socket；
+//  2. 通过 ioctl CTLIOCGINFO 根据名称 com.apple.net.utun_control
+//     查到该内核控制模块的 ID；
+//  3. 构造 SockaddrCtl 结构体并 connect：
+//     - ID   = 查找到的内核控制器 ID
+//     - Unit = 想要绑定的 utun 编号 + 1（Unit 从 1 开始，
+//     Unit=1 对应 utun0，Unit=4 对应 utun3，以此类推）
 //
 // 参数:
 //   - name: 期望的接口名，格式必须为 "utun" 或 "utunN"（N 为非负整数）。
-//           传 "utun" 表示让内核自动分配一个未使用的编号。
+//     传 "utun" 表示让内核自动分配一个未使用的编号。
 //   - mtu : 期望设置的 MTU 值，<=0 表示使用系统默认值。
 //
 // 返回: 实现 Device 接口的 *NativeTun 对象，或错误。
@@ -204,7 +205,7 @@ func CreateTUN(name string, mtu int) (Device, error) {
 	err = unix.IoctlCtlInfo(fd, ctlInfo)
 	if err != nil {
 		unix.Close(fd)
-		return nil, fmt.Errorf("IoctlGetCtlInfo: %w", err)
+		return nil, fmt.Errorf("IoctlGetCtlInfo, %w", err)
 	}
 
 	// 步骤 3: 构造 SockaddrCtl 并调用 connect 将 socket 绑定到指定 utun 单元。
@@ -251,11 +252,11 @@ func CreateTUN(name string, mtu int) (Device, error) {
 
 // CreateTUNFromFile 接受一个已经就绪的 utun socket 文件对象，
 // 完成 NativeTun 结构体的剩余初始化：
-//   1. 通过 getsockopt 查询接口名；
-//   2. 根据名字查到接口 ifindex；
-//   3. 创建 AF_ROUTE socket 用于事件监听；
-//   4. 启动 routineRouteListener 后台 goroutine；
-//   5. 如 mtu>0 则调用 setMTU 设置 MTU。
+//  1. 通过 getsockopt 查询接口名；
+//  2. 根据名字查到接口 ifindex；
+//  3. 创建 AF_ROUTE socket 用于事件监听；
+//  4. 启动 routineRouteListener 后台 goroutine；
+//  5. 如 mtu>0 则调用 setMTU 设置 MTU。
 //
 // 参数:
 //   - file: 已经 connect 到 utun 控制单元的 *os.File。
@@ -314,6 +315,7 @@ func CreateTUNFromFile(file *os.File, mtu int) (Device, error) {
 // macOS 上无法通过 ioctl 查询，而是使用 getsockopt 读取：
 //   - level  = SYSPROTO_CONTROL (2)
 //   - optname= UTUN_OPT_IFNAME (2)
+//
 // 该选项直接返回内核分配的接口名字符串。
 func (tun *NativeTun) Name() (string, error) {
 	var err error
@@ -328,7 +330,7 @@ func (tun *NativeTun) Name() (string, error) {
 	})
 
 	if err != nil {
-		return "", fmt.Errorf("GetSockoptString: %w", err)
+		return "", fmt.Errorf("GetSockoptString, %w", err)
 	}
 
 	return tun.name, nil
@@ -342,7 +344,8 @@ func (tun *NativeTun) File() *os.File {
 
 // Events 返回事件接收通道。
 // 外部 tun.Device 使用者从此通道读取：
-//   EventUp / EventDown / EventMTUUpdate
+//
+//	EventUp / EventDown / EventMTUUpdate
 func (tun *NativeTun) Events() <-chan Event {
 	return tun.events
 }
@@ -354,30 +357,31 @@ func (tun *NativeTun) Events() <-chan Event {
 // 当启用了 TUNSIFHEAD（"packet info" / IFHEAD）模式后，
 // 从 /dev/tunX 或 utun socket 读出的每个报文前面会多一个 4 字节头部：
 //
-//     字节 0    1    2    3    4    5    6    7    ...
-//   +----+----+----+----+----+----+----+----+
-//   | 00 | 00 | 00 | AF | IP / IPv6 报文内容...     |
-//   +----+----+----+----+----+----+----+----+
+//	  字节 0    1    2    3    4    5    6    7    ...
+//	+----+----+----+----+----+----+----+----+
+//	| 00 | 00 | 00 | AF | IP / IPv6 报文内容...     |
+//	+----+----+----+----+----+----+----+----+
 //
 // 其中前 3 字节固定为 0x00（用于地址族字段之前的预留/对齐），
 // 第 4 字节（offset 3）是 BSD 地址族常量：
-//     0x02 = AF_INET  (IPv4)
-//     0x1E = AF_INET6 (IPv6)
+//
+//	0x02 = AF_INET  (IPv4)
+//	0x1E = AF_INET6 (IPv6)
 //
 // 为什么需要这个 4 字节头部？
-//   1. 区分协议：同一个 TUN 接口同时承载 IPv4 和 IPv6 报文时，
-//      内核通过此头部告知用户态读到的报文是哪种 IP 版本；
-//      写入时用户态也要告知内核要把报文投递到哪个协议栈。
-//   2. 历史兼容：早期 tun 驱动只支持 IPv4，不带头部；
-//      后来加入多协议支持后，通过 TUNSIFHEAD 开关选择是否带 AF 头。
-//   3. 对上层 WireGuard 而言，我们只需要完整的 IP 包（从 offset 4 开始），
-//      所以在 Read 时 sizes[0] = n - 4，去掉前面 4 字节。
+//  1. 区分协议：同一个 TUN 接口同时承载 IPv4 和 IPv6 报文时，
+//     内核通过此头部告知用户态读到的报文是哪种 IP 版本；
+//     写入时用户态也要告知内核要把报文投递到哪个协议栈。
+//  2. 历史兼容：早期 tun 驱动只支持 IPv4，不带头部；
+//     后来加入多协议支持后，通过 TUNSIFHEAD 开关选择是否带 AF 头。
+//  3. 对上层 WireGuard 而言，我们只需要完整的 IP 包（从 offset 4 开始），
+//     所以在 Read 时 sizes[0] = n - 4，去掉前面 4 字节。
 //
 // 参数:
 //   - bufs  : 接收缓冲区切片（只使用 bufs[0]，BatchSize=1）
 //   - sizes : 每个缓冲区实际写入的字节数（同样只用 sizes[0]）
 //   - offset: IP 报文应放置的起始偏移。实际读取时从 offset-4 开始，
-//             让 4 字节 AF 头放在 IP 报文之前，便于上层统一处理。
+//     让 4 字节 AF 头放在 IP 报文之前，便于上层统一处理。
 func (tun *NativeTun) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
 	// 先检查 errors 通道是否有后台错误待处理
 	select {
@@ -401,20 +405,21 @@ func (tun *NativeTun) Read(bufs [][]byte, sizes []int, offset int) (int, error) 
 // 每个报文在写入前需要补上 4 字节的 AF 头。
 //
 // 在 offset 指定位置之前（offset-4 ~ offset-1）写入：
-//   buf[offset-4] = 0x00
-//   buf[offset-3] = 0x00
-//   buf[offset-2] = 0x00
-//   buf[offset-1] = AF_INET (2) 或 AF_INET6 (30/0x1E)
+//
+//	buf[offset-4] = 0x00
+//	buf[offset-3] = 0x00
+//	buf[offset-2] = 0x00
+//	buf[offset-1] = AF_INET (2) 或 AF_INET6 (30/0x1E)
 //
 // AF 的判断方式：检查 buf[offset] 即 IP 报文第一个字节的高 4 位。
 //   - IPv4 首字节高 4 位 = 4（Version=4）
 //   - IPv6 首字节高 4 位 = 6（Version=6）
-//   buf[offset] >> 4 正好得到版本号。
+//     buf[offset] >> 4 正好得到版本号。
 //
 // 参数:
 //   - bufs  : 待发送报文缓冲区切片
 //   - offset: 每个缓冲区中 IP 报文起始偏移。
-//             要求 offset>=4，方便在前面写 AF 头。
+//     要求 offset>=4，方便在前面写 AF 头。
 //
 // 返回: 实际成功写入的报文数量。
 func (tun *NativeTun) Write(bufs [][]byte, offset int) (int, error) {
@@ -446,9 +451,9 @@ func (tun *NativeTun) Write(bufs [][]byte, offset int) (int, error) {
 // Close 关闭 TUN 设备，释放所有资源。
 // 使用 sync.Once 保证并发调用也只会实际关闭一次。
 // 关闭流程：
-//   1. 关闭 utun 的 tunFile（底层 socket fd）；
-//   2. 关闭 AF_ROUTE routeSocket（先 shutdown 再 close 防止阻塞）。
-//      routeSocket 若未初始化（为 -1），则兜底关闭 events 通道。
+//  1. 关闭 utun 的 tunFile（底层 socket fd）；
+//  2. 关闭 AF_ROUTE routeSocket（先 shutdown 再 close 防止阻塞）。
+//     routeSocket 若未初始化（为 -1），则兜底关闭 events 通道。
 func (tun *NativeTun) Close() error {
 	var err1, err2 error
 	tun.closeOnce.Do(func() {
@@ -489,7 +494,7 @@ func (tun *NativeTun) setMTU(n int) error {
 	ifr.MTU = int32(n)
 	err = unix.IoctlSetIfreqMTU(fd, &ifr)
 	if err != nil {
-		return fmt.Errorf("failed to set MTU on %s: %w", tun.name, err)
+		return fmt.Errorf("failed to set MTU on %s, %w", tun.name, err)
 	}
 
 	return nil
@@ -510,7 +515,7 @@ func (tun *NativeTun) MTU() (int, error) {
 
 	ifr, err := unix.IoctlGetIfreqMTU(fd, tun.name)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get MTU on %s: %w", tun.name, err)
+		return 0, fmt.Errorf("failed to get MTU on %s, %w", tun.name, err)
 	}
 
 	return int(ifr.MTU), nil
@@ -528,13 +533,14 @@ func (tun *NativeTun) BatchSize() int {
 // 即在执行 execve() 类系统调用时 fd 会被自动关闭，防止泄漏给子进程。
 //
 // 为什么需要 ForkLock？
-//   Go 运行时在某些场景下会 fork（例如 exec.Command 底层使用 fork+exec），
-//   如果在创建 socket 到设置 FD_CLOEXEC 之间被 fork 打断，
-//   子进程会继承这个未设置 CLOEXEC 的 fd，造成资源泄漏。
-//   标准库通过 syscall.ForkLock 这个全局读写锁来同步：
-//     - fork 操作持有写锁；
-//     - 创建 fd + 设置 CLOEXEC 这段临界区持有读锁。
-//   这正是 Go 标准库 net 包 sys_cloexec.go 中的惯用做法。
+//
+//	Go 运行时在某些场景下会 fork（例如 exec.Command 底层使用 fork+exec），
+//	如果在创建 socket 到设置 FD_CLOEXEC 之间被 fork 打断，
+//	子进程会继承这个未设置 CLOEXEC 的 fd，造成资源泄漏。
+//	标准库通过 syscall.ForkLock 这个全局读写锁来同步：
+//	  - fork 操作持有写锁；
+//	  - 创建 fd + 设置 CLOEXEC 这段临界区持有读锁。
+//	这正是 Go 标准库 net 包 sys_cloexec.go 中的惯用做法。
 func socketCloexec(family, sotype, proto int) (fd int, err error) {
 	// See go/src/net/sys_cloexec.go for background.
 	syscall.ForkLock.RLock()

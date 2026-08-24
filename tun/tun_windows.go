@@ -119,10 +119,13 @@ func CheckWintunReady() error {
 	driverVersion, err := wintun.RunningVersion()
 	if err != nil {
 		if errors.Is(err, windows.ERROR_FILE_NOT_FOUND) {
-			logs.Notice("[Wintun] 检测到 wintun.dll v%s 已加载，但内核驱动尚未安装或未启动；首次创建适配器时将自动安装驱动，请确认程序以管理员权限运行。", dllVersion)
+			logs.Warning("[Wintun] 检测到 wintun.dll v%s 已加载，但内核驱动尚未安装或未启动。", dllVersion)
+			logs.Warning("[Wintun] 首次创建适配器时将自动安装驱动，请确认程序以管理员权限运行。")
 		} else {
-			logs.Notice("[Wintun] 检测到 wintun.dll v%s 已加载，但查询驱动版本失败, %v；将尝试直接创建适配器，若失败请确认驱动安装情况与权限。", dllVersion, err)
+			logs.Warning("[Wintun] 检测到 wintun.dll v%s 已加载，但查询驱动版本失败, %v；", dllVersion, err)
+			logs.Warning("[Wintun] 将尝试直接创建适配器，若失败请确认驱动安装情况与权限。")
 		}
+		logs.Warning("[Wintun] 错误信息, %v", err)
 		return nil
 	}
 	logs.Notice("[Wintun] 就绪：wintun.dll v%s，已加载驱动版本 0x%08x", dllVersion, driverVersion)
@@ -175,7 +178,7 @@ func CreateTUNWithRequestedGUID(ifname string, requestedGUID *windows.GUID, mtu 
 		// 会话启动失败需回滚：关闭适配器并关闭事件通道
 		tun.wt.Close()
 		close(tun.events)
-		return nil, fmt.Errorf("Error starting session: %w", err)
+		return nil, fmt.Errorf("Error starting session, %w", err)
 	}
 	// 获取读等待事件句柄，用于 Read 在环形缓冲区为空时阻塞
 	tun.readWait = tun.session.ReadWaitEvent()
@@ -284,7 +287,7 @@ retry:
 			// 环形缓冲数据结构被破坏，通常是驱动异常
 			return 0, errors.New("Send ring corrupt")
 		}
-		return 0, fmt.Errorf("Read failed: %w", err)
+		return 0, fmt.Errorf("Read failed, %w", err)
 	}
 }
 
@@ -316,7 +319,7 @@ func (tun *NativeTun) Write(bufs [][]byte, offset int) (int, error) {
 			// 发送环已满，主动丢弃该包并继续下一个，避免阻塞整个写线程
 			continue
 		default:
-			return i, fmt.Errorf("Write failed: %w", err)
+			return i, fmt.Errorf("Write failed, %w", err)
 		}
 	}
 	return len(bufs), nil

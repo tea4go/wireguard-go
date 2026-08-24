@@ -101,10 +101,10 @@ type NativeTun struct {
 
 	// writeOpMu 互斥锁保护 toWrite 切片以及 tcpGROTable/udpGROTable，
 	// 确保同一时间只有一个 Write 调用在执行 GRO 合并逻辑。
-	writeOpMu   sync.Mutex
+	writeOpMu sync.Mutex
 	// toWrite 存储经过 GRO 合并后需要实际写入 TUN 设备的数据包在 bufs 数组中的索引。
 	// 之所以存储索引而非直接存储数据包切片，是为了避免内存拷贝，提高效率。
-	toWrite     []int
+	toWrite []int
 	// tcpGROTable 是 TCP GRO（Generic Receive Offload）合并表。
 	// Write 时，如果启用 vnetHdr，会先将多个小的 TCP 包按流合并成一个大包再写入内核，
 	// 这样可以减少系统调用次数，提升吞吐（模拟网卡的接收合并）。
@@ -258,13 +258,13 @@ func (tun *NativeTun) routineNetlinkListener() {
 			// 如果是可重试错误（如 EINTR），检查是否是 netlinkCancel 触发的取消信号。
 			if !tun.netlinkCancel.ReadyRead() {
 				// ReadyRead 返回 false 说明 Cancel 已被调用，socket 正在被关闭。
-				tun.errors <- fmt.Errorf("netlink socket closed: %w", err)
+				tun.errors <- fmt.Errorf("netlink socket closed, %w", err)
 				return
 			}
 		}
 		if err != nil {
 			// 读取 netlink 消息失败（非重试类错误），将错误传递给 errors 通道并退出。
-			tun.errors <- fmt.Errorf("failed to receive netlink message: %w", err)
+			tun.errors <- fmt.Errorf("failed to receive netlink message, %w", err)
 			return
 		}
 
@@ -419,7 +419,7 @@ func (tun *NativeTun) setMTU(n int) error {
 	)
 
 	if errno != 0 {
-		return fmt.Errorf("failed to set MTU of TUN device: %w", errno)
+		return fmt.Errorf("failed to set MTU of TUN device, %w", errno)
 	}
 
 	return nil
@@ -458,7 +458,7 @@ func (tun *NativeTun) MTU() (int, error) {
 		uintptr(unsafe.Pointer(&ifr[0])),
 	)
 	if errno != 0 {
-		return 0, fmt.Errorf("failed to get MTU of TUN device: %w", errno)
+		return 0, fmt.Errorf("failed to get MTU of TUN device, %w", errno)
 	}
 
 	// 从返回缓冲区中读取 int32 类型的 MTU 值并转换为 int 返回。
@@ -503,10 +503,10 @@ func (tun *NativeTun) nameSlow() (string, error) {
 		)
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to get name of TUN device: %w", err)
+		return "", fmt.Errorf("failed to get name of TUN device, %w", err)
 	}
 	if errno != 0 {
-		return "", fmt.Errorf("failed to get name of TUN device: %w", errno)
+		return "", fmt.Errorf("failed to get name of TUN device, %w", errno)
 	}
 	// ifr 缓冲区开头就是以 '\0' 结尾的接口名（C 风格字符串）。
 	// unix.ByteSliceToString 将字节切片转换为 Go string，遇到第一个 '\0' 时截断。
@@ -937,11 +937,11 @@ func CreateTUNFromFile(file *os.File, mtu int) (Device, error) {
 	// 构造 NativeTun 实例，初始化各字段。
 	tun := &NativeTun{
 		tunFile:                 file,
-		events:                  make(chan Event, 5),          // 带缓冲的事件通道，避免慢消费者丢事件
-		errors:                  make(chan error, 5),          // 带缓冲的错误通道
-		statusListenersShutdown: make(chan struct{}),          // 关闭信号通道，关闭时触发
-		tcpGROTable:             newTCPGROTable(),             // TCP GRO 合并表，Write 时使用
-		udpGROTable:             newUDPGROTable(),             // UDP GRO 合并表
+		events:                  make(chan Event, 5),                 // 带缓冲的事件通道，避免慢消费者丢事件
+		errors:                  make(chan error, 5),                 // 带缓冲的错误通道
+		statusListenersShutdown: make(chan struct{}),                 // 关闭信号通道，关闭时触发
+		tcpGROTable:             newTCPGROTable(),                    // TCP GRO 合并表，Write 时使用
+		udpGROTable:             newUDPGROTable(),                    // UDP GRO 合并表
 		toWrite:                 make([]int, 0, conn.IdealBatchSize), // 预分配容量的写索引切片
 	}
 

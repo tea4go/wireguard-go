@@ -30,7 +30,7 @@ func getGSOSize(control []byte) (int, error) {
 	for len(rem) > unix.SizeofCmsghdr {
 		hdr, data, rem, err = unix.ParseOneSocketControlMessage(rem)
 		if err != nil {
-			return 0, fmt.Errorf("error parsing socket control message: %w", err)
+			return 0, fmt.Errorf("error parsing socket control message, %w", err)
 		}
 		if hdr.Level == unix.SOL_UDP && hdr.Type == unix.UDP_GRO && len(data) >= sizeOfGSOData {
 			var gso uint16

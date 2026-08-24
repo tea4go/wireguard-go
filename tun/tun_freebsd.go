@@ -274,7 +274,7 @@ func tunDestroy(name string) error {
 	copy(ifr[:], name)
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCIFDESTROY), uintptr(unsafe.Pointer(&ifr[0])))
 	if errno != 0 {
-		return fmt.Errorf("failed to destroy interface %s: %w", name, errno)
+		return fmt.Errorf("failed to destroy interface %s, %w", name, errno)
 	}
 
 	return nil
@@ -339,7 +339,7 @@ func CreateTUN(name string, mtu int) (Device, error) {
 	if errno != 0 {
 		tunFile.Close()
 		tunDestroy(assignedName)
-		return nil, fmt.Errorf("unable to put into IFHEAD mode: %w", errno)
+		return nil, fmt.Errorf("unable to put into IFHEAD mode, %w", errno)
 	}
 
 	// Get out of PTP mode.
@@ -355,7 +355,7 @@ func CreateTUN(name string, mtu int) (Device, error) {
 	if errno != 0 {
 		tunFile.Close()
 		tunDestroy(assignedName)
-		return nil, fmt.Errorf("unable to put into IFF_BROADCAST mode: %w", errno)
+		return nil, fmt.Errorf("unable to put into IFF_BROADCAST mode, %w", errno)
 	}
 
 	// Disable link-local v6, not just because WireGuard doesn't do that anyway, but
@@ -376,7 +376,7 @@ func CreateTUN(name string, mtu int) (Device, error) {
 	if errno != 0 {
 		tunFile.Close()
 		tunDestroy(assignedName)
-		return nil, fmt.Errorf("unable to get nd6 flags for %s: %w", assignedName, errno)
+		return nil, fmt.Errorf("unable to get nd6 flags for %s, %w", assignedName, errno)
 	}
 	// 5b: 修改 flags 位：清除 AUTO_LINKLOCAL；设置 NO_DAD
 	ndireq.Flags = ndireq.Flags &^ _ND6_IFF_AUTO_LINKLOCAL
@@ -386,7 +386,7 @@ func CreateTUN(name string, mtu int) (Device, error) {
 	if errno != 0 {
 		tunFile.Close()
 		tunDestroy(assignedName)
-		return nil, fmt.Errorf("unable to set nd6 flags for %s: %w", assignedName, errno)
+		return nil, fmt.Errorf("unable to set nd6 flags for %s, %w", assignedName, errno)
 	}
 
 	// 步骤 6: 如果用户传入了非空 name，把接口从 "tunN" 改名到用户指定名
@@ -408,7 +408,7 @@ func CreateTUN(name string, mtu int) (Device, error) {
 		if errno != 0 {
 			tunFile.Close()
 			tunDestroy(assignedName)
-			return nil, fmt.Errorf("Failed to rename %s to %s: %w", assignedName, name, errno)
+			return nil, fmt.Errorf("Failed to rename %s to %s, %w", assignedName, name, errno)
 		}
 	}
 
@@ -439,7 +439,7 @@ func CreateTUNFromFile(file *os.File, mtu int) (Device, error) {
 	})
 	if errno != 0 {
 		tun.tunFile.Close()
-		return nil, fmt.Errorf("unable to become controlling TUN process: %w", errno)
+		return nil, fmt.Errorf("unable to become controlling TUN process, %w", errno)
 	}
 
 	name, err := tun.Name()
@@ -595,7 +595,7 @@ func (tun *NativeTun) setMTU(n int) error {
 	ifr.MTU = uint32(n)
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCSIFMTU), uintptr(unsafe.Pointer(&ifr)))
 	if errno != 0 {
-		return fmt.Errorf("failed to set MTU on %s: %w", tun.name, errno)
+		return fmt.Errorf("failed to set MTU on %s, %w", tun.name, errno)
 	}
 	return nil
 }
@@ -612,7 +612,7 @@ func (tun *NativeTun) MTU() (int, error) {
 	copy(ifr.Name[:], tun.name)
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCGIFMTU), uintptr(unsafe.Pointer(&ifr)))
 	if errno != 0 {
-		return 0, fmt.Errorf("failed to get MTU on %s: %w", tun.name, errno)
+		return 0, fmt.Errorf("failed to get MTU on %s, %w", tun.name, errno)
 	}
 	// 虽然 ifr.MTU 类型是 uint32，但 FreeBSD 内部把 MTU 当作 signed
 	// int32 存储，所以这里转成 int32 再转 int 保证符号正确。

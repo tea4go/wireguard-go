@@ -82,7 +82,7 @@ func init() {
 					err = unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_V6ONLY, 1)
 				})
 			default:
-				err = fmt.Errorf("unhandled network: %s: %w", network, unix.EINVAL)
+				err = fmt.Errorf("unhandled network: %s, %w", network, unix.EINVAL)
 			}
 			return err
 		},

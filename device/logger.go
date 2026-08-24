@@ -63,6 +63,7 @@ func NewLogger(level int, prepend string) *Logger {
 	// 默认将所有级别指向 DiscardLogf（丢弃），后续按 level 逐个启用
 	logger := &Logger{
 		Verbosef:   DiscardLogf,
+		Debug:      DiscardLogf,
 		Info:       DiscardLogf,
 		Notice:     DiscardLogf,
 		Warningf:   DiscardLogf,
@@ -96,6 +97,13 @@ func NewLogger(level int, prepend string) *Logger {
 	if level >= LogLevelInfo {
 		logger.Info = func(format string, args ...any) {
 			logs.Info(mkPrefix(format), args...)
+		}
+	}
+
+	// 7：Debug 级别 → logs.Debug（与 Verbosef 同为调试输出，Debug 先于 Verbose 启用）
+	if level >= LogLevelInfo {
+		logger.Debug = func(format string, args ...any) {
+			logs.Debug(mkPrefix(format), args...)
 		}
 	}
 

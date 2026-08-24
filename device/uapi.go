@@ -129,7 +129,7 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 
 	// send lines (does not require resource locks)
 	if _, err := w.Write(buf.Bytes()); err != nil {
-		return ipcErrorf(ipc.IpcErrorIO, "failed to write output: %w", err)
+		return ipcErrorf(ipc.IpcErrorIO, "failed to write output, %w", err)
 	}
 
 	return nil
@@ -189,7 +189,7 @@ func (device *Device) IpcSetOperation(r io.Reader) (err error) {
 	peer.handlePostConfig()
 
 	if err := scanner.Err(); err != nil {
-		return ipcErrorf(ipc.IpcErrorIO, "failed to read input: %w", err)
+		return ipcErrorf(ipc.IpcErrorIO, "failed to read input, %w", err)
 	}
 	return nil
 }
@@ -200,7 +200,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		var sk NoisePrivateKey
 		err := sk.FromMaybeZeroHex(value)
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set private_key: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set private_key, %w", err)
 		}
 		device.log.Info("UAPI：正在更新私钥")
 		device.SetPrivateKey(sk)
@@ -208,7 +208,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 	case "listen_port":
 		port, err := strconv.ParseUint(value, 10, 16)
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "failed to parse listen_port: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to parse listen_port, %w", err)
 		}
 
 		// update port and rebind
@@ -219,18 +219,18 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		device.net.Unlock()
 
 		if err := device.BindUpdate(); err != nil {
-			return ipcErrorf(ipc.IpcErrorPortInUse, "failed to set listen_port: %w", err)
+			return ipcErrorf(ipc.IpcErrorPortInUse, "failed to set listen_port, %w", err)
 		}
 
 	case "fwmark":
 		mark, err := strconv.ParseUint(value, 10, 32)
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "invalid fwmark: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "invalid fwmark, %w", err)
 		}
 
 		device.log.Info("UAPI：正在更新 fwmark")
 		if err := device.BindSetMark(uint32(mark)); err != nil {
-			return ipcErrorf(ipc.IpcErrorPortInUse, "failed to update fwmark: %w", err)
+			return ipcErrorf(ipc.IpcErrorPortInUse, "failed to update fwmark, %w", err)
 		}
 
 	case "replace_peers":
@@ -276,7 +276,7 @@ func (device *Device) handlePublicKeyLine(peer *ipcSetPeer, value string) error 
 	var publicKey NoisePublicKey
 	err := publicKey.FromHex(value)
 	if err != nil {
-		return ipcErrorf(ipc.IpcErrorInvalid, "failed to get peer by public key: %w", err)
+		return ipcErrorf(ipc.IpcErrorInvalid, "failed to get peer by public key, %w", err)
 	}
 
 	// Ignore peer with the same public key as this device.
@@ -294,7 +294,7 @@ func (device *Device) handlePublicKeyLine(peer *ipcSetPeer, value string) error 
 	if peer.created {
 		peer.Peer, err = device.NewPeer(publicKey)
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "failed to create new peer: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to create new peer, %w", err)
 		}
 		device.log.Notice("%v - UAPI：已创建", peer.Peer)
 	}
@@ -334,14 +334,14 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		peer.handshake.mutex.Unlock()
 
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set preshared key: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set preshared key, %w", err)
 		}
 
 	case "endpoint":
 		device.log.Info("%v - UAPI：正在更新端点", peer.Peer)
 		endpoint, err := device.net.bind.ParseEndpoint(value)
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set endpoint %v: %w", value, err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set endpoint %v, %w", value, err)
 		}
 		peer.endpoint.Lock()
 		defer peer.endpoint.Unlock()
@@ -352,7 +352,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 
 		secs, err := strconv.ParseUint(value, 10, 16)
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set persistent keepalive interval: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set persistent keepalive interval, %w", err)
 		}
 
 		old := peer.persistentKeepaliveInterval.Swap(uint32(secs))
@@ -381,7 +381,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		device.log.Info("%v - UAPI：正在%s allowed_ip", peer.Peer, verb)
 		prefix, err := netip.ParsePrefix(value)
 		if err != nil {
-			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set allowed ip: %w", err)
+			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set allowed ip, %w", err)
 		}
 		if peer.dummy {
 			return nil
@@ -455,7 +455,7 @@ func (device *Device) IpcHandle(socket net.Conn) {
 		var status *IPCError
 		if err != nil && !errors.As(err, &status) {
 			// shouldn't happen
-			status = ipcErrorf(ipc.IpcErrorUnknown, "other UAPI error: %w", err)
+			status = ipcErrorf(ipc.IpcErrorUnknown, "other UAPI error, %w", err)
 		}
 		if status != nil {
 			device.log.Errorf("UAPI 操作返回错误状态, %v", status)

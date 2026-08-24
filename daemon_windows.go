@@ -47,7 +47,7 @@ func IsRunningAsAdmin() bool {
 func duplicatePrimaryToken() (windows.Token, error) {
 	hProcess, err := windows.GetCurrentProcess()
 	if err != nil {
-		return 0, fmt.Errorf("GetCurrentProcess 失败: %w", err)
+		return 0, fmt.Errorf("GetCurrentProcess 失败, %w", err)
 	}
 	var hToken windows.Token
 	err = windows.OpenProcessToken(hProcess,
@@ -56,7 +56,7 @@ func duplicatePrimaryToken() (windows.Token, error) {
 			windows.TOKEN_ADJUST_SESSIONID,
 		&hToken)
 	if err != nil {
-		return 0, fmt.Errorf("OpenProcessToken 失败: %w", err)
+		return 0, fmt.Errorf("OpenProcessToken 失败, %w", err)
 	}
 	defer hToken.Close()
 
@@ -68,7 +68,7 @@ func duplicatePrimaryToken() (windows.Token, error) {
 		windows.TokenPrimary,
 		&dupToken)
 	if err != nil {
-		return 0, fmt.Errorf("DuplicateTokenEx 失败: %w", err)
+		return 0, fmt.Errorf("DuplicateTokenEx 失败, %w", err)
 	}
 	return dupToken, nil
 }
@@ -100,14 +100,14 @@ func setDaemonSysProcAttr(cmd *execplus.CmdPlus) {
 func EnableAllPrivileges() error {
 	hProcess, err := windows.GetCurrentProcess()
 	if err != nil {
-		return fmt.Errorf("GetCurrentProcess: %w", err)
+		return fmt.Errorf("GetCurrentProcess, %w", err)
 	}
 	var token windows.Token
 	err = windows.OpenProcessToken(hProcess,
 		windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY,
 		&token)
 	if err != nil {
-		return fmt.Errorf("OpenProcessToken: %w", err)
+		return fmt.Errorf("OpenProcessToken, %w", err)
 	}
 	defer token.Close()
 
@@ -120,7 +120,7 @@ func EnableAllPrivileges() error {
 	err = windows.GetTokenInformation(token, windows.TokenPrivileges,
 		&buf[0], bufLen, &bufLen)
 	if err != nil {
-		return fmt.Errorf("GetTokenInformation: %w", err)
+		return fmt.Errorf("GetTokenInformation, %w", err)
 	}
 
 	privs := (*windows.Tokenprivileges)(unsafe.Pointer(&buf[0]))

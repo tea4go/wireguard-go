@@ -124,7 +124,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	mtu := cfg.MTU
 	tunDevice, err := tun.CreateTUN(cfg.InterfaceName, mtu)
 	if err != nil {
-		return nil, fmt.Errorf("创建 TUN 设备失败: %w", err)
+		return nil, fmt.Errorf("创建 TUN 设备失败, %w", err)
 	}
 	logs.Debug("接口 %s: TUN 创建成功", cfg.InterfaceName)
 
@@ -139,28 +139,28 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 		logger.Debug("= 节点: %s", describePeerConfig(peer))
 	}
 	if cfg.UAPI != "" {
-		logs.Notice("接口 %s: 开始应用 WireGuard 配置", interfaceName)
+		logs.Debug("接口 %s: 开始应用 WireGuard 配置", interfaceName)
 		if err := dev.IpcSet(cfg.UAPI); err != nil {
 			dev.Close()
-			return nil, fmt.Errorf("应用配置失败: %w", err)
+			return nil, fmt.Errorf("应用配置失败, %w", err)
 		}
-		logs.Notice("接口 %s: WireGuard 配置应用成功", interfaceName)
+		logs.Debug("接口 %s: WireGuard 配置应用成功", interfaceName)
 		if cfg.MTU > 0 {
-			logger.Verbosef("已从配置中应用 MTU=%s", strconv.Itoa(cfg.MTU))
+			logger.Debug("已从配置中应用 MTU=%s", strconv.Itoa(cfg.MTU))
 		}
 	}
 
 	if err := dev.Up(); err != nil {
 		dev.Close()
-		return nil, fmt.Errorf("启动设备失败: %w", err)
+		return nil, fmt.Errorf("启动设备失败, %w", err)
 	}
-	logs.Notice("接口 %s: 设备启动成功", interfaceName)
+	logs.Debug("接口 %s: 设备启动成功", interfaceName)
 
 	if len(cfg.Addresses) > 0 {
-		logs.Notice("接口 %s: 开始应用接口地址", interfaceName)
+		logs.Debug("接口 %s: 开始应用接口地址", interfaceName)
 		addressWarnings := applyInterfaceAddresses(interfaceName, cfg.Addresses)
 		if len(addressWarnings) == 0 {
-			logs.Notice("接口 %s: 接口地址应用完成", interfaceName)
+			logs.Debug("接口 %s: 接口地址应用完成", interfaceName)
 		} else {
 			for _, warning := range addressWarnings {
 				logs.Error(warning)
@@ -168,19 +168,19 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 		}
 	}
 
-	logs.Notice("接口 %s: 开始关闭 IPv6 绑定", interfaceName)
+	logs.Debug("接口 %s: 开始关闭 IPv6 绑定", interfaceName)
 	if err := disableInterfaceIPv6(interfaceName); err != nil {
-		logs.Error("接口 %s: 关闭 IPv6 绑定失败: %v", interfaceName, err)
+		logs.Error("接口 %s: 关闭 IPv6 绑定失败, %v", interfaceName, err)
 	} else {
-		logs.Notice("接口 %s: IPv6 绑定已关闭", interfaceName)
+		logs.Debug("接口 %s: IPv6 绑定已关闭", interfaceName)
 	}
 
 	uapi, err := ipc.UAPIListen(interfaceName)
 	if err != nil {
 		dev.Close()
-		return nil, fmt.Errorf("UAPI 监听失败: %w", err)
+		return nil, fmt.Errorf("UAPI 监听失败, %w", err)
 	}
-	logs.Notice("接口 %s: UAPI 监听已启动", interfaceName)
+	logs.Debug("接口 %s: UAPI 监听已启动", interfaceName)
 
 	return &runningInterface{
 		name:   interfaceName,
@@ -277,7 +277,7 @@ func main() {
 	logs.Info("= Foreground ....... %v", *pforeground)
 	logs.Info("= Daemon ........... %v", *pdaemon)
 	logs.Info("= Confile .......... %s", confile)
-	logs.Info("= LogLevel ......... %s", logs.GetLevel("file"))
+	logs.Info("= LogLevel ......... %d", logs.GetLevel("file"))
 	if !*pforeground && !*pdaemon {
 		logs.Notice("准备启动守护进程 ......")
 		daemonMgr := NewDaemonManager()
@@ -389,11 +389,11 @@ func main() {
 			<-done
 			deviceClosed <- name
 		}(ri.name, ri.device.Wait())
-		logs.Notice("接口 %s 已启动", ri.name)
+		logs.Debug("接口 %s 已启动", ri.name)
 	}
 
 	if len(running) == 0 {
-		logs.Notice("当前没有成功启动的接口，进程将保持运行并等待终止信号")
+		logs.Warning("当前没有成功启动的接口，进程将保持运行并等待终止信号")
 	} else {
 		var err error
 		networkMonitor, err = startWindowsNetworkMonitor(func() {
