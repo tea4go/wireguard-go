@@ -34,6 +34,7 @@ type interfaceConfig struct {
 }
 
 type peerConfig struct {
+	name                       string
 	publicKey                  string
 	presharedKey               string
 	allowedIPs                 []string
@@ -238,10 +239,14 @@ func describeTunnelConfig(cfg *tunnelConfig) string {
 }
 
 func describePeerConfig(peer peerConfig) string {
-	parts := []string{
-		"公钥=" + abbreviateHexKey(peer.publicKey),
-		"允许IP=" + strings.Join(peer.allowedIPs, ","),
+	parts := make([]string, 0, 5)
+	if peer.name != "" {
+		parts = append(parts, "名称="+peer.name)
 	}
+	parts = append(parts,
+		"公钥="+abbreviateHexKey(peer.publicKey),
+		"允许IP="+strings.Join(peer.allowedIPs, ","),
+	)
 	if peer.endpoint != "" {
 		parts = append(parts, "Endpoint="+peer.endpoint)
 	}
@@ -318,6 +323,12 @@ func parseInterfaceLine(iface *interfaceConfig, ignored map[string]struct{}, key
 
 func parsePeerLine(peer *peerConfig, ignored map[string]struct{}, key, value, source string, lineNo int) error {
 	switch strings.ToLower(key) {
+	case "name":
+		if value == "" {
+			return fmt.Errorf("%s:%d: Peer.Name 不能为空", source, lineNo)
+		}
+		peer.name = value
+
 	case "publickey":
 		decoded, err := decodeBase64KeyToHex(value)
 		if err != nil {
@@ -397,6 +408,9 @@ func buildUAPIConfig(iface interfaceConfig, peers []peerConfig, source string) (
 			continue
 		}
 		lines = append(lines, "public_key="+peer.publicKey)
+		if peer.name != "" {
+			lines = append(lines, "name="+peer.name)
+		}
 		if peer.presharedKey != "" {
 			lines = append(lines, "preshared_key="+peer.presharedKey)
 		}
@@ -475,6 +489,8 @@ func canonicalConfigKey(key string) string {
 		return "Endpoint"
 	case "persistentkeepalive", "persistentkeepaliveinterval":
 		return "PersistentKeepalive"
+	case "name":
+		return "Name"
 	default:
 		return strings.TrimSpace(key)
 	}

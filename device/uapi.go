@@ -105,6 +105,9 @@ func (device *Device) IpcGetOperation(w io.Writer) error {
 			keyf("public_key", (*[32]byte)(&peer.handshake.remoteStatic))
 			keyf("preshared_key", (*[32]byte)(&peer.handshake.presharedKey))
 			peer.handshake.mutex.RUnlock()
+			if peer.Name != "" {
+				sendf("name=%s", peer.Name)
+			}
 			sendf("protocol_version=1")
 			peer.endpoint.Lock()
 			if peer.endpoint.val != nil {
@@ -338,6 +341,10 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set preshared key, %w", err)
 		}
+
+	case "name":
+		device.log.Info("%v - UAPI：正在更新名称", peer.Peer)
+		peer.Name = value
 
 	case "endpoint":
 		device.log.Info("%v - UAPI：正在更新端点", peer.Peer)

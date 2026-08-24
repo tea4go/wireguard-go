@@ -16,6 +16,7 @@ import (
 )
 
 type Peer struct {
+	Name              string
 	isRunning         atomic.Bool
 	keypairs          Keypairs
 	handshake         Handshake
@@ -145,6 +146,9 @@ func (peer *Peer) SendBuffers(buffers [][]byte) error {
 }
 
 func (peer *Peer) String() string {
+	if peer.Name != "" {
+		return "Peer(" + peer.Name + ")"
+	}
 	// The awful goo that follows is identical to:
 	//
 	//   base64Key := base64.StdEncoding.EncodeToString(peer.handshake.remoteStatic[:])

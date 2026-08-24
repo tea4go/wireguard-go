@@ -314,3 +314,46 @@ func TestParseTunnelConfigCollectsWarningsInsteadOfFailing(t *testing.T) {
 		t.Fatalf("expected valid peer to remain in UAPI, got %q", cfg.UAPI)
 	}
 }
+
+func TestParseTunnelConfigSupportsPeerName(t *testing.T) {
+	conf := strings.Join([]string{
+		"[Interface]",
+		"PrivateKey = " + repeatedKeyBase64(0x11),
+		"",
+		"[Peer]",
+		"Name = 190网段",
+		"PublicKey = " + repeatedKeyBase64(0x22),
+		"AllowedIPs = 192.168.190.0/24",
+		"Endpoint = 101.133.133.127:8357",
+		"PersistentKeepalive = 25",
+		"",
+	}, "\n")
+
+	cfg, warnings := parseTunnelConfig([]byte(conf), "peer-name.conf")
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
+	}
+	if cfg == nil {
+		t.Fatal("expected config, got nil")
+	}
+	if got, want := len(cfg.Peers), 1; got != want {
+		t.Fatalf("expected %d peer, got %d", want, got)
+	}
+	if got, want := cfg.Peers[0].name, "190网段"; got != want {
+		t.Fatalf("expected peer name %q, got %q", want, got)
+	}
+	if got, want := cfg.IgnoredFields, []string{}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected ignored fields %v, got %v", want, got)
+	}
+
+	peerSummary := describePeerConfig(cfg.Peers[0])
+	if !strings.Contains(peerSummary, "名称=190网段") {
+		t.Fatalf("peer summary missing name: %q", peerSummary)
+	}
+	if !strings.Contains(cfg.UAPI, "public_key="+repeatedKeyHex(0x22)) {
+		t.Fatalf("expected peer UAPI to keep public key, got %q", cfg.UAPI)
+	}
+	if !strings.Contains(cfg.UAPI, "name=190网段") {
+		t.Fatalf("expected peer name to be written into UAPI, got %q", cfg.UAPI)
+	}
+}
