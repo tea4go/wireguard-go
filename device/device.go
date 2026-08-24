@@ -374,18 +374,13 @@ func (device *Device) Close() {
 		return
 	}
 	device.state.state.Store(uint32(deviceStateClosed))
-	device.log.Verbosef("正在关闭设备")
+	device.log.Notice("正在关闭设备")
 
 	device.tun.device.Close()
 	device.downLocked()
 
-	// Remove peers before closing queues,
-	// because peers assume that queues are active.
 	device.RemoveAllPeers()
 
-	// We kept a reference to the encryption and decryption queues,
-	// in case we started any new peers that might write to them.
-	// No new peers are coming; we are done with these queues.
 	device.queue.encryption.wg.Done()
 	device.queue.decryption.wg.Done()
 	device.queue.handshake.wg.Done()
@@ -393,7 +388,7 @@ func (device *Device) Close() {
 
 	device.rate.limiter.Close()
 
-	device.log.Verbosef("设备已关闭")
+	device.log.Notice("设备已关闭")
 	close(device.closed)
 }
 
