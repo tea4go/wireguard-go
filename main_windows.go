@@ -458,5 +458,5 @@ func main() {
 		logs.Notice("接口 %s 已关闭", ri.name)
 	}
 
-	logs.Notice("正在关闭")
+	logs.Notice("正在关闭进程")
 }
