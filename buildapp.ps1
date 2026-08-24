@@ -1,6 +1,12 @@
 #Requires -Version 5.1
 [CmdletBinding()]
-param()
+param(
+    [ValidateSet('windows', 'linux', 'macos')]
+    [string]$OS = 'windows',
+
+    [ValidateSet('amd64', 'arm64')]
+    [string]$Arch = 'amd64'
+)
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -16,8 +22,22 @@ if (-not $SCRIPT_DIR.EndsWith('\')) { $SCRIPT_DIR += '\' }
 $env:GOCACHE = Join-Path $SCRIPT_DIR '.gocache'
 $env:GOTMPDIR = Join-Path $SCRIPT_DIR '.gotmp'
 
-$OUT_EXE_NAME = 'wireguard.exe'
-$RUN_EXE     = Join-Path $SCRIPT_DIR $OUT_EXE_NAME
+switch ($OS) {
+    'windows' {
+        $TargetGOOS = 'windows'
+        $OUT_BIN_NAME = 'wireguard.exe'
+    }
+    'linux' {
+        $TargetGOOS = 'linux'
+        $OUT_BIN_NAME = 'wireguard-go'
+    }
+    'macos' {
+        $TargetGOOS = 'darwin'
+        $OUT_BIN_NAME = 'wireguard-go'
+    }
+}
+
+$RUN_EXE = Join-Path $SCRIPT_DIR $OUT_BIN_NAME
 
 if (-not (Test-Path $env:GOCACHE))  { New-Item -ItemType Directory -Path $env:GOCACHE  -Force | Out-Null }
 if (-not (Test-Path $env:GOTMPDIR)) { New-Item -ItemType Directory -Path $env:GOTMPDIR -Force | Out-Null }
@@ -35,7 +55,9 @@ if (-not (Test-Path $env:GOTMPDIR)) { New-Item -ItemType Directory -Path $env:GO
 # ============================================================
 if ([string]::IsNullOrWhiteSpace($env:IS_BETA))     { $env:IS_BETA     = 'false' }
 if ([string]::IsNullOrWhiteSpace($env:log_level))   { $env:log_level   = '7' }
-if ([string]::IsNullOrWhiteSpace($env:RUN_CONFIG))  { $env:RUN_CONFIG  = Join-Path $SCRIPT_DIR 'conf\wgtun1.conf' }
+if ($OS -eq 'windows' -and [string]::IsNullOrWhiteSpace($env:RUN_CONFIG)) {
+    $env:RUN_CONFIG  = Join-Path $SCRIPT_DIR 'conf\wgtun1.conf'
+}
 
 $VERSION_FILE = Join-Path $SCRIPT_DIR 'VERSION.txt'
 
@@ -47,10 +69,14 @@ if (-not (Get-Command 'go' -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-$RUN_CFG_USE = $env:RUN_CONFIG
-if (-not [string]::IsNullOrWhiteSpace($RUN_CFG_USE) -and -not (Test-Path $RUN_CFG_USE)) {
-    Write-Host "[警告] 未找到配置文件: $RUN_CFG_USE" -ForegroundColor Yellow
-    Write-Host '       将不使用 --confile 参数启动（可设置 RUN_CONFIG 环境变量指定配置文件）。' -ForegroundColor Yellow
+if ($OS -eq 'windows') {
+    $RUN_CFG_USE = $env:RUN_CONFIG
+    if (-not [string]::IsNullOrWhiteSpace($RUN_CFG_USE) -and -not (Test-Path $RUN_CFG_USE)) {
+        Write-Host "[警告] 未找到配置文件: $RUN_CFG_USE" -ForegroundColor Yellow
+        Write-Host '       将不使用 --confile 参数启动（可设置 RUN_CONFIG 环境变量指定配置文件）。' -ForegroundColor Yellow
+        $RUN_CFG_USE = ''
+    }
+} else {
     $RUN_CFG_USE = ''
 }
 
@@ -102,10 +128,6 @@ if ($env:IS_BETA -eq 'true') {
     $APP_VER_FULL = $APP_TAG
 }
 
-# GOOS / GOARCH for banner
-$GOOS_T   = (& go env GOOS)   | Select-Object -First 1
-$GOARCH_T = (& go env GOARCH) | Select-Object -First 1
-
 Write-Host '======================================================='
 Write-Host "项目目录    : $SCRIPT_DIR"
 Write-Host "版本文件    : $VERSION_FILE"
@@ -117,9 +139,12 @@ if ($env:IS_BETA -eq 'true') {
 }
 Write-Host "构建时间    : $BuildTime"
 Write-Host "测试版      : $($env:IS_BETA)"
-Write-Host "目标平台    : $GOOS_T/$GOARCH_T"
-Write-Host "日志级别    : $($env:log_level) (0=紧急..5=通知..7=调试/详细)"
-Write-Host "配置文件    : $RUN_CFG_USE"
+Write-Host "目标平台    : $OS/$Arch"
+Write-Host "Go 目标     : $TargetGOOS/$Arch"
+if ($OS -eq 'windows') {
+    Write-Host "日志级别    : $($env:log_level) (0=紧急..5=通知..7=调试/详细)"
+    Write-Host "配置文件    : $RUN_CFG_USE"
+}
 Write-Host "输出文件    : $RUN_EXE"
 Write-Host '======================================================='
 
@@ -130,8 +155,10 @@ Write-Host '======================================================='
 # ============================================================
 Get-ChildItem -Path $SCRIPT_DIR -Filter '*.exe.old' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
-foreach ($proc in @('wireguard', 'wireguard-go', 'compile', 'asm', 'link')) {
-    Get-Process -Name $proc -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+if ($OS -eq 'windows') {
+    foreach ($proc in @('wireguard', 'wireguard-go', 'compile', 'asm', 'link')) {
+        Get-Process -Name $proc -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # ============================================================
@@ -151,8 +178,11 @@ if (-not [string]::IsNullOrWhiteSpace($env:IS_BETA)) {
 }
 $LDFLAGS = $LDFLAGS_PARTS -join ' '
 
-Write-Host "执行构建: go build -buildvcs=false -trimpath -ldflags `"$LDFLAGS`" -o `"$OUT_EXE_NAME`""
-& go build -buildvcs=false -trimpath -ldflags $LDFLAGS -o $OUT_EXE_NAME
+$env:GOOS = $TargetGOOS
+$env:GOARCH = $Arch
+
+Write-Host "执行构建: GOOS=$TargetGOOS GOARCH=$Arch go build -buildvcs=false -trimpath -ldflags `"$LDFLAGS`" -o `"$OUT_BIN_NAME`""
+& go build -buildvcs=false -trimpath -ldflags $LDFLAGS -o $OUT_BIN_NAME
 if ($LASTEXITCODE -ne 0) {
     Write-Host '[错误] 构建失败。' -ForegroundColor Red
     exit $LASTEXITCODE
@@ -161,11 +191,16 @@ Write-Host "构建成功: $RUN_EXE" -ForegroundColor Green
 
 # Optional: copy to PATH alias directory if exists
 $ALIAS_DIR = 'C:\DevDisk\Other\Alias'
-if (Test-Path $ALIAS_DIR) {
+if ($OS -eq 'windows' -and (Test-Path $ALIAS_DIR)) {
     Copy-Item -Path $RUN_EXE -Destination $ALIAS_DIR -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host '======================================================='
+
+if ($OS -ne 'windows') {
+    Write-Host "[信息] 非 Windows 目标仅执行编译，不自动运行输出文件。" -ForegroundColor Cyan
+    exit 0
+}
 
 # ============================================================
 #  停止守护进程（确保旧的 wireguard 守护进程已关闭）
@@ -198,11 +233,15 @@ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIden
 )
 
 $exeArgs = @()
-if (-not [string]::IsNullOrWhiteSpace($RUN_CFG_USE)) {
-    $exeArgs += '--confile'
-    $exeArgs += $RUN_CFG_USE
+if ($args.Count -gt 0) {
+    $exeArgs = @($args)
+} else {
+    if (-not [string]::IsNullOrWhiteSpace($RUN_CFG_USE)) {
+        $exeArgs += '--confile'
+        $exeArgs += $RUN_CFG_USE
+    }
+    $exeArgs += '-f'
 }
-$exeArgs += '-f'
 
 if ($isAdmin) {
     & $RUN_EXE @exeArgs
@@ -210,6 +249,6 @@ if ($isAdmin) {
 }
 
 # 提权
-Write-Host "正在请求管理员权限以启动 $OUT_EXE_NAME ..." -ForegroundColor Cyan
+Write-Host "正在请求管理员权限以启动 $OUT_BIN_NAME ..." -ForegroundColor Cyan
 $procInfo = Start-Process -FilePath $RUN_EXE -ArgumentList $exeArgs -Verb RunAs -Wait -PassThru
 exit $procInfo.ExitCode

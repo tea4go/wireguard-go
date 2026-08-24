@@ -63,6 +63,12 @@ func printFullUsage() {
 	fmt.Printf("  -f, --foreground       前台模式：在当前控制台直接运行，不启动守护子进程。\n")
 	fmt.Printf("  -q, --quit             停止当前正在运行的守护进程（通过 PID 文件匹配）。\n")
 	fmt.Printf("  -S, --status           查看守护进程运行状态：PID、启动时间、运行时长。\n")
+	fmt.Printf("      --sync-provider    配置同步提供方：github 或 gitee。\n")
+	fmt.Printf("      --sync-action      配置同步动作：upload 或 download。\n")
+	fmt.Printf("      --sync-token       GitHub/Gitee 私有 Gist 访问令牌。\n")
+	fmt.Printf("      --sync-gist-id     远端 Gist/代码片段 ID；upload 可省略以新建，download 必填。\n")
+	fmt.Printf("      --sync-file        (可选) 指定下载的远端备份文件名；默认自动选最新版本。\n")
+	fmt.Printf("      --sync <路径>      从 JSON5 同步配置文件读取参数并直接执行同步。\n")
 	fmt.Printf("  -h, --help             显示本帮助信息并退出。\n")
 	fmt.Printf("运行模式:\n")
 	fmt.Printf("  1) 守护进程（默认）   : 父进程启动带 --daemon 的子进程后退出，\n")
@@ -81,6 +87,9 @@ func printFullUsage() {
 	fmt.Printf("  %s -f -c conf\\wgtun1.conf                     # 前台模式加载单配置（调试查看日志）\n", exeName)
 	fmt.Printf("  %s --confile \"C:\\vpn\\tunnels.zip\"             # 多接口 ZIP 打包，自动守护\n", exeName)
 	fmt.Printf("  $env:confile='conf\\wgtun1.conf'; %s           # 通过环境变量指定配置\n", exeName)
+	fmt.Printf("  %s --sync-provider github --sync-action upload --sync-token <token> -c conf\\wgtun1.conf\n", exeName)
+	fmt.Printf("  %s --sync-provider gitee --sync-action download --sync-token <token> --sync-gist-id <id> -c conf\\sync.zip\n", exeName)
+	fmt.Printf("  %s --sync .\\example.json5\n", exeName)
 	fmt.Printf("  %s -S                                         # 查看守护状态\n", exeName)
 	fmt.Printf("  %s -q                                         # 停止守护\n\n", exeName)
 
@@ -235,6 +244,12 @@ func main() {
 	pquit := flag.BoolP("quit", "q", false, "停止正在运行的守护进程")
 	pstatus := flag.BoolP("status", "S", false, "查看守护进程运行状态")
 	pdaemon := flag.BoolP("daemon", "d", false, "(内部) 以守护进程子进程模式运行，外部用户请省略本参数或使用默认无参启动自动守护")
+	psyncProvider := flag.String("sync-provider", "", "配置同步提供方（github/gitee）")
+	psyncAction := flag.String("sync-action", "", "配置同步动作（upload/download）")
+	psyncToken := flag.String("sync-token", "", "配置同步访问令牌")
+	psyncGistID := flag.String("sync-gist-id", "", "远端 Gist/代码片段 ID")
+	psyncFile := flag.String("sync-file", "", "指定同步备份文件名")
+	psyncConfig := flag.String("sync", "", "从 JSON5 配置文件执行同步")
 
 	flag.Usage = func() {
 		printFullUsage()
@@ -242,7 +257,42 @@ func main() {
 	_ = flag.CommandLine.MarkHidden("daemon")
 	flag.Parse()
 
-	confile := logs.GetParamString("confile", *pconfile, "/etc/wireguard/wgtun.conf")
+	syncConfile := strings.TrimSpace(*pconfile)
+	if syncConfile == "" {
+		syncConfile = strings.TrimSpace(os.Getenv("confile"))
+	}
+	if strings.TrimSpace(*psyncConfig) != "" {
+		if flag.NArg() != 0 {
+			printUsage()
+			fmt.Fprintln(os.Stderr, "错误: 同步模式下不支持额外的位置参数")
+			os.Exit(ExitSetupFailed)
+		}
+		cfg, err := loadSyncConfig(*psyncConfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "读取同步配置失败: %v\n", err)
+			os.Exit(ExitSetupFailed)
+		}
+		cfg = applySyncConfigOverrides(cfg, *psyncProvider, *psyncAction, *psyncToken, *psyncGistID, syncConfile, *psyncFile)
+		if err := runSyncCommand(os.Stdout, cfg.Provider, cfg.Action, cfg.Confile, cfg.Token, cfg.GistID, cfg.RemoteFile); err != nil {
+			fmt.Fprintf(os.Stderr, "配置同步失败: %v\n", err)
+			os.Exit(ExitSetupFailed)
+		}
+		os.Exit(ExitSetupSuccess)
+	}
+	if strings.TrimSpace(*psyncProvider) != "" || strings.TrimSpace(*psyncAction) != "" {
+		if flag.NArg() != 0 {
+			printUsage()
+			fmt.Fprintln(os.Stderr, "错误: 同步模式下不支持额外的位置参数")
+			os.Exit(ExitSetupFailed)
+		}
+		if err := runSyncCommand(os.Stdout, *psyncProvider, *psyncAction, syncConfile, *psyncToken, *psyncGistID, *psyncFile); err != nil {
+			fmt.Fprintf(os.Stderr, "配置同步失败: %v\n", err)
+			os.Exit(ExitSetupFailed)
+		}
+		os.Exit(ExitSetupSuccess)
+	}
+
+	confile := logs.GetParamString("confile", *pconfile, getDefaultConfilePath())
 	//#endregion
 	log_name := os.Getenv("log_name")
 	if log_name == "" {
@@ -357,7 +407,7 @@ func main() {
 	logs.Notice("配置来源: %s", confile)
 	logs.Info("本次共识别到 %d 个接口配置", len(configs))
 	for _, warning := range warnings {
-		logs.Error("配置告警: %s", warning)
+		logs.Error(warning)
 	}
 
 	if err := tun.CheckWintunReady(); err != nil {

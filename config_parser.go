@@ -50,7 +50,7 @@ func loadTunnelConfigs(path string) ([]*tunnelConfig, []string) {
 	case ".conf":
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, []string{fmt.Sprintf("%s: 读取配置文件失败: %v", path, err)}
+			return nil, []string{fmt.Sprintf("读取配置文件失败, %v", err)}
 		}
 		cfg, cfgWarnings := parseTunnelConfig(data, path)
 		warnings = append(warnings, cfgWarnings...)
@@ -62,7 +62,7 @@ func loadTunnelConfigs(path string) ([]*tunnelConfig, []string) {
 	case ".zip":
 		reader, err := zip.OpenReader(path)
 		if err != nil {
-			return nil, []string{fmt.Sprintf("%s: 打开配置压缩包失败: %v", path, err)}
+			return nil, []string{fmt.Sprintf("打开配置压缩包失败, %v", err)}
 		}
 		defer reader.Close()
 
@@ -76,7 +76,7 @@ func loadTunnelConfigs(path string) ([]*tunnelConfig, []string) {
 			}
 		}
 		if len(entries) == 0 {
-			return nil, []string{fmt.Sprintf("%s: 压缩包中未找到 .conf 配置文件", path)}
+			return nil, []string{fmt.Sprintf("压缩包中未找到 .conf 配置文件 (%s)", path)}
 		}
 
 		sort.Slice(entries, func(i, j int) bool {
@@ -87,18 +87,18 @@ func loadTunnelConfigs(path string) ([]*tunnelConfig, []string) {
 		for _, entry := range entries {
 			rc, err := entry.Open()
 			if err != nil {
-				warnings = append(warnings, fmt.Sprintf("%s (%s): 打开压缩包内配置文件失败: %v", path, entry.Name, err))
+				warnings = append(warnings, fmt.Sprintf("%s (%s): 打开压缩包内配置文件失败, %v", path, entry.Name, err))
 				continue
 			}
 
 			data, readErr := io.ReadAll(rc)
 			closeErr := rc.Close()
 			if readErr != nil {
-				warnings = append(warnings, fmt.Sprintf("%s (%s): 读取压缩包内配置文件失败: %v", path, entry.Name, readErr))
+				warnings = append(warnings, fmt.Sprintf("读取压缩包内配置(%s)文件失败, %v (%s)", entry.Name, readErr, path))
 				continue
 			}
 			if closeErr != nil {
-				warnings = append(warnings, fmt.Sprintf("%s (%s): 关闭压缩包内配置文件失败: %v", path, entry.Name, closeErr))
+				warnings = append(warnings, fmt.Sprintf("关闭压缩包内配置文件失败, %v (%s)", closeErr, path))
 				continue
 			}
 

@@ -1,0 +1,21 @@
+{
+  // github 或 gitee
+  provider: 'github',
+
+  // upload 或 download
+  action: 'upload',
+
+  // 访问令牌
+  token: 'replace-with-your-token',
+
+  // upload 首次可留空；download 通常必填
+  gistId: '',
+
+  // 本地输入或输出文件：
+  // upload 时读取本地 .conf / .zip
+  // download 时写回本地 .conf / .zip
+  confile: 'conf/wgtun1.conf',
+
+  // download 时可指定远端某个备份文件；留空表示自动选择最新版本
+  remoteFile: '',
+}

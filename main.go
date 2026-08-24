@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 
+	flag "github.com/spf13/pflag"
 	logs "github.com/tea4go/gh/log4go"
 	"golang.org/x/sys/unix"
 	"golang.zx2c4.com/wireguard/conn"

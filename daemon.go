@@ -18,6 +18,12 @@ import (
 const (
 	pidFileLinux   = "/var/run/wireguard-go.pid"
 	pidFileWindows = "wireguard-go.pid"
+
+	defaultConfileName                  = "wgtun.conf"
+	defaultConfileDirLinux              = "/etc/wireguard"
+	defaultConfileDirDarwinIntel        = "/usr/local/etc/wireguard"
+	defaultConfileDirDarwinAppleSilicon = "/opt/homebrew/etc/wireguard"
+	defaultConfileSubdirWindows         = "conf"
 )
 
 type DaemonManager struct {
@@ -37,6 +43,35 @@ func getPidFilePath() string {
 		return filepath.Join(exeDir, pidFileWindows)
 	}
 	return pidFileLinux
+}
+
+func getDefaultConfilePath() string {
+	if runtime.GOOS == "windows" {
+		exePath, err := os.Executable()
+		if err == nil {
+			exeDir := filepath.Dir(exePath)
+			return filepath.Join(exeDir, defaultConfileSubdirWindows, defaultConfileName)
+		}
+		return filepath.Join(defaultConfileSubdirWindows, defaultConfileName)
+	}
+	if runtime.GOOS == "darwin" {
+		confileDir := defaultConfileDirDarwinAppleSilicon
+		if runtime.GOARCH == "amd64" {
+			confileDir = defaultConfileDirDarwinIntel
+		}
+		if _, err := os.Stat(filepath.Join(confileDir, defaultConfileName)); err == nil {
+			return filepath.Join(confileDir, defaultConfileName)
+		}
+		altDir := defaultConfileDirDarwinIntel
+		if runtime.GOARCH == "amd64" {
+			altDir = defaultConfileDirDarwinAppleSilicon
+		}
+		if _, err := os.Stat(filepath.Join(altDir, defaultConfileName)); err == nil {
+			return filepath.Join(altDir, defaultConfileName)
+		}
+		return filepath.Join(confileDir, defaultConfileName)
+	}
+	return filepath.Join(defaultConfileDirLinux, defaultConfileName)
 }
 
 func FormatDuration(d time.Duration) string {
