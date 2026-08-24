@@ -386,7 +386,7 @@ func main() {
 			<-done
 			deviceClosed <- name
 		}(ri.name, ri.device.Wait())
-		logs.Debug("接口 %s 已启动", ri.name)
+		logs.Notice("接口 %s 已启动", ri.name)
 	}
 
 	if len(running) == 0 {
