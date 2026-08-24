@@ -76,6 +76,13 @@ func NewLogger(level int, prepend string) *Logger {
 	mkPrefix := func(format string) string {
 		return "[" + prepend + "] " + format
 	}
+	
+	// 9：Print 级别 → logs.Print（直接输出）
+	if level >= LogLevelPrint {
+		logger.Printf = func(format string, args ...any) {
+			logs.Print(mkPrefix(format), args...)
+		}
+	}
 
 	// 8：Verbose 级别 → logs.Debug
 	if level >= LogLevelVerbose {
@@ -130,13 +137,6 @@ func NewLogger(level int, prepend string) *Logger {
 	if level >= LogLevelEmergency {
 		logger.Emergencyf = func(format string, args ...any) {
 			logs.Emergency(mkPrefix(format), args...)
-		}
-	}
-
-	// 9：Print 级别 → logs.Print（直接输出）
-	if level >= LogLevelPrint {
-		logger.Printf = func(format string, args ...any) {
-			logs.Print(mkPrefix(format), args...)
 		}
 	}
 
