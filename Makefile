@@ -2,23 +2,62 @@ PREFIX ?= /usr
 DESTDIR ?=
 BINDIR ?= $(PREFIX)/bin
 
-# 版本号：优先从外部注入，例如 `make VERSION=v1.2.3`，否则通过 git describe 自动推导，兜底为 v0.0.0-devel
-VERSION ?= $(shell export GIT_CEILING_DIRECTORIES="$(realpath $(CURDIR)/..)" ; git describe --dirty --always --tags 2>/dev/null || echo "v0.0.0-devel")
-BUILD_TIME ?= $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+# Version (do NOT derive from git anymore - auto-increment persisted in VERSION.txt).
+#
+#   Priority:
+#     1) `make VERSION=vx.y.z`            -> use VERSION, and save it into VERSION.txt
+#     2) else read VERSION.txt (default start v3.0.0 if missing)
+#        increment PATCH with carry: each digit max = 9
+#          e.g. v3.0.9 -> v3.1.0 ; v3.9.9 -> v4.0.0
+#        save the new VERSION.txt
+
+VERSION_FILE := $(CURDIR)/VERSION.txt
+
+# If caller passed VERSION=..., use it as-is and persist.
+ifdef VERSION
+  APP_TAG := $(VERSION)
+  $(shell printf '%s\n' '$(APP_TAG)' > '$(VERSION_FILE)')
+else
+  APP_TAG := $(shell \
+    CUR=`cat '$(VERSION_FILE)' 2>/dev/null || echo v3.0.0`; \
+    CUR=$${CUR\#v}; CUR=$${CUR// /}; \
+    CUR=$${CUR%%-*}; CUR=$${CUR%%_*}; \
+    MA=3; MI=0; PA=0; \
+    IFS=. read -r _MA _MI _PA <<TXT
+$$CUR
+TXT
+    _MA=$${_MA//[^0-9]/}; _MI=$${_MI//[^0-9]/}; _PA=$${_PA//[^0-9]/}; \
+    [ -n "$$_MA" ] && MA=$$_MA; \
+    [ -n "$$_MI" ] && MI=$$_MI; \
+    [ -n "$$_PA" ] && PA=$$_PA; \
+    MA=$$((MA+0)); MI=$$((MI+0)); PA=$$((PA+0)); \
+    PA=$$((PA+1)); \
+    if [ $$PA -gt 9 ]; then PA=0; MI=$$((MI+1)); fi; \
+    if [ $$MI -gt 9 ]; then MI=0; MA=$$((MA+1)); fi; \
+    NEW="v$$MA.$$MI.$$PA"; \
+    printf '%s\n' "$$NEW" > '$(VERSION_FILE)'; \
+    printf '%s' "$$NEW")
+endif
+
+# Final composed version strings
+BUILD_DATE ?= $(shell date -u +%Y%m%d)
+BUILD_HHMM ?= $(shell date -u +%H%M)
+APP_VER_FULL ?= $(APP_TAG)_B$(BUILD_DATE)_$(BUILD_HHMM)
+BUILD_TIME ?= $(shell date -u '+%Y-%m-%d %H:%M:%S')
 IS_BETA ?=
 
-# Go 工具链参数
+# Go toolchain settings
 export GO111MODULE := on
 GO ?= go
 export CGO_ENABLED ?= 0
 
-# 构建产物名
+# Output binaries
 BIN_NAME ?= wireguard-go
 WIN_BIN_NAME ?= wireguard-go.exe
 
-# 注入到 main 包的链接参数（两个入口：main.runtimeVersion 用于 POSIX，main.appVer 用于 Windows）
+# ldflags injected into package main
 LDFLAGS_COMMON := -s -w
-LDFLAGS_VERSION := -X main.runtimeVersion=$(VERSION) -X main.appVer=$(VERSION) -X main.BuildTime=$(BUILD_TIME)
+LDFLAGS_VERSION := -X main.runtimeVersion=$(APP_VER_FULL) -X main.appVer=$(APP_VER_FULL) -X "main.BuildTime=$(BUILD_TIME)"
 ifneq ($(IS_BETA),)
 LDFLAGS_VERSION += -X main.IsBeta=$(IS_BETA)
 endif
@@ -26,37 +65,29 @@ LDFLAGS := $(LDFLAGS_COMMON) $(LDFLAGS_VERSION)
 
 MAKEFLAGS += --no-print-directory
 
-# 默认目标：不写 version.go，直接通过 ldflags 注入版本号后构建
+# Default target: build POSIX wireguard-go
 all: wireguard-go
 
-# 兜底：当 go 源码改动需要版本号出现在二进制里时，仍然可以调用此目标生成 version.go（兼容老流程）
-generate-version:
-	@export GIT_CEILING_DIRECTORIES="$(realpath $(CURDIR)/..)" && \
-	tag="$$(git describe --dirty 2>/dev/null || echo $(VERSION))" && \
-	ver="$$(printf 'package main\n\nconst Version = "%s"\n' "$$tag")" && \
-	( [ "$$(cat version.go 2>/dev/null)" != "$$ver" ] && echo "$$ver" > version.go && \
-	git update-index --assume-unchanged version.go || true )
-
-# POSIX 平台构建（使用 ldflags 注入，不需要再写 version.go；若源码显式引用了常量 Version 则会回退到 version.go）
+# POSIX build
 wireguard-go: $(wildcard *.go) $(wildcard */*.go)
-	@echo "构建 $(BIN_NAME) version=$(VERSION) build_time=$(BUILD_TIME)"
+	@echo "Building $(BIN_NAME) APP_TAG=$(APP_TAG) APP_VER_FULL=$(APP_VER_FULL) BUILD_TIME=$(BUILD_TIME)"
 	$(GO) build -v -trimpath -buildvcs=false -ldflags '$(LDFLAGS)' -o "$@"
 
-# 交叉编译 Windows (amd64)
+# Cross-compile Windows amd64
 windows-amd64:
-	@echo "构建 $(WIN_BIN_NAME) version=$(VERSION) GOOS=windows GOARCH=amd64"
+	@echo "Building $(WIN_BIN_NAME) APP_TAG=$(APP_TAG) GOOS=windows GOARCH=amd64"
 	GOOS=windows GOARCH=amd64 $(GO) build -v -trimpath -buildvcs=false \
 		-ldflags '$(LDFLAGS)' -o "$(WIN_BIN_NAME)"
 
-# 交叉编译 Windows (arm64)
+# Cross-compile Windows arm64
 windows-arm64:
-	@echo "构建 $(WIN_BIN_NAME) version=$(VERSION) GOOS=windows GOARCH=arm64"
+	@echo "Building wireguard-go-arm64.exe APP_TAG=$(APP_TAG) GOOS=windows GOARCH=arm64"
 	GOOS=windows GOARCH=arm64 $(GO) build -v -trimpath -buildvcs=false \
 		-ldflags '$(LDFLAGS)' -o "wireguard-go-arm64.exe"
 
-# 全平台（方便打包发布）
+# Convenience: all three platform binaries
 release: wireguard-go windows-amd64 windows-arm64
-	@echo "发布产物已生成：$(BIN_NAME) / $(WIN_BIN_NAME) / wireguard-go-arm64.exe"
+	@echo "Release artifacts: $(BIN_NAME) / $(WIN_BIN_NAME) / wireguard-go-arm64.exe"
 
 install: wireguard-go
 	@install -v -d "$(DESTDIR)$(BINDIR)" && install -v -m 0755 "$<" "$(DESTDIR)$(BINDIR)/$(BIN_NAME)"
@@ -70,14 +101,18 @@ vet:
 clean:
 	rm -f wireguard-go wireguard-go.exe wireguard-go-arm64.exe wireguard.exe
 
-# 调试：展示当前 Makefile 解析到的版本号与 ldflags
+# Debug: print resolved version / env
 showenv:
-	@echo "VERSION     = $(VERSION)"
-	@echo "BUILD_TIME  = $(BUILD_TIME)"
-	@echo "IS_BETA     = $(IS_BETA)"
-	@echo "LDFLAGS     = $(LDFLAGS)"
-	@echo "GO          = $(GO)"
-	@echo "GOOS        = $(shell $(GO) env GOOS)"
-	@echo "GOARCH      = $(shell $(GO) env GOARCH)"
+	@echo "VERSION_FILE = $(VERSION_FILE)"
+	@echo "APP_TAG      = $(APP_TAG)       (MAJOR.MINOR.PATCH, each digit max=9, carry to next)"
+	@echo "BUILD_DATE   = $(BUILD_DATE)   (YYYYMMDD)"
+	@echo "BUILD_HHMM   = $(BUILD_HHMM)   (HHmm)"
+	@echo "APP_VER_FULL = $(APP_VER_FULL)   (example: v3.0.1_B20060930_0930)"
+	@echo "BUILD_TIME   = $(BUILD_TIME)   (yyyy-mm-dd hh:mm:ss)"
+	@echo "IS_BETA      = $(IS_BETA)"
+	@echo "LDFLAGS      = $(LDFLAGS)"
+	@echo "GO           = $(GO)"
+	@echo "GOOS         = $(shell $(GO) env GOOS)"
+	@echo "GOARCH       = $(shell $(GO) env GOARCH)"
 
-.PHONY: all generate-version windows-amd64 windows-arm64 release install test vet clean showenv
+.PHONY: all windows-amd64 windows-arm64 release install test vet clean showenv
