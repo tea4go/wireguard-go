@@ -170,7 +170,6 @@ func (device *Device) changeState(want deviceState) (err error) {
 // The caller must hold device.state.mu and is responsible for updating device.state.state.
 func (device *Device) upLocked() error {
 	if err := device.BindUpdate(); err != nil {
-		device.log.Errorf("无法更新绑定, %v", err)
 		return err
 	}
 	// The IPC set operation waits for peers to be created before calling Start() on them,

@@ -32,7 +32,7 @@ const (
 )
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, "用法: %s -c <配置文件.conf|配置包.zip>\n", filepath.Base(os.Args[0]))
+	fmt.Fprintf(os.Stderr, "用法: %s [-c <配置文件.conf|配置包.zip|配置目录>]\n", filepath.Base(os.Args[0]))
 }
 
 func printFullUsage() {
@@ -56,10 +56,10 @@ func printFullUsage() {
 	fmt.Printf("平台    : %s-%s\n\n", runtime.GOOS, runtime.GOARCH)
 
 	fmt.Printf("使用方法:\n")
-	fmt.Printf("  %s -c <配置文件> [其它选项]\n\n", exeName)
+	fmt.Printf("  %s [-c <配置文件.conf|配置包.zip|配置目录>] [其它选项]\n\n", exeName)
 
 	fmt.Printf("选项:\n")
-	fmt.Printf("  -c, --confile <路径>   (必需) 指定配置文件（.conf 单接口 或 .zip 多接口打包）。\n")
+	fmt.Printf("  -c, --confile <路径>   指定配置来源（.conf 单接口、.zip 多接口打包、或目录下全部 .conf）。\n")
 	fmt.Printf("  -f, --foreground       前台模式：在当前控制台直接运行，不启动守护子进程。\n")
 	fmt.Printf("  -q, --quit             停止当前正在运行的守护进程（通过 PID 文件匹配）。\n")
 	fmt.Printf("  -S, --status           查看守护进程运行状态：PID、启动时间、运行时长。\n")
@@ -78,6 +78,7 @@ func printFullUsage() {
 
 	fmt.Printf("环境变量 / 通用 log4go 参数:\n")
 	fmt.Printf("  confile                   等效于 --confile；若命令行已传 --confile 则以命令行为准。\n")
+	fmt.Printf("                            未指定时默认读取程序目录下 conf 目录中的全部 .conf。\n")
 	fmt.Printf("  log_level                 日志级别 (0-7, 数字越大越详细, 默认 5=Notice)\n")
 	fmt.Printf("  log_name                  日志文件名标识，默认使用程序名，生成 ulog_<log_name>.txt\n")
 	fmt.Printf("  log_server                远程日志服务器 host:port，会透传给守护子进程。\n")
@@ -86,7 +87,9 @@ func printFullUsage() {
 	fmt.Printf("  %s -c conf\\wgtun1.conf                        # 自动守护模式加载单配置\n", exeName)
 	fmt.Printf("  %s -f -c conf\\wgtun1.conf                     # 前台模式加载单配置（调试查看日志）\n", exeName)
 	fmt.Printf("  %s --confile \"C:\\vpn\\tunnels.zip\"             # 多接口 ZIP 打包，自动守护\n", exeName)
+	fmt.Printf("  %s --confile conf                             # 加载目录下全部 .conf 配置\n", exeName)
 	fmt.Printf("  $env:confile='conf\\wgtun1.conf'; %s           # 通过环境变量指定配置\n", exeName)
+	fmt.Printf("  %s                                            # 默认加载程序目录下 conf\\*.conf\n", exeName)
 	fmt.Printf("  %s --sync-provider github --sync-action upload --sync-token <token> -c conf\\wgtun1.conf\n", exeName)
 	fmt.Printf("  %s --sync-provider gitee --sync-action download --sync-token <token> --sync-gist-id <id> -c conf\\sync.zip\n", exeName)
 	fmt.Printf("  %s --sync .\\example.json5\n", exeName)
@@ -98,6 +101,7 @@ func printFullUsage() {
 	fmt.Printf("           其中 Interface.Address、Interface.MTU、Interface.Name 会被解析用于\n")
 	fmt.Printf("           Windows 系统层的 IP 地址、MTU、接口命名设置。\n")
 	fmt.Printf("  .zip   : 压缩包内包含若干 .conf 文件，每个文件对应一个独立的 TUN 接口。\n\n")
+	fmt.Printf("  目录   : 目录下全部 .conf 文件按名称排序后逐个启动，每个文件对应一个独立的 TUN 接口。\n\n")
 
 	fmt.Printf("更多信息: https://www.wireguard.com/\n")
 	fmt.Printf("版权所有 (C) Jason A. Donenfeld <jason@zx2c4.com> 及本修改版贡献者。\n")
@@ -162,7 +166,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 
 	if err := dev.Up(); err != nil {
 		dev.Close()
-		return nil, fmt.Errorf("启动设备失败, %w", err)
+		return nil, err
 	}
 	logs.Info("[%s] 虚拟网卡设备启动成功", interfaceName)
 
@@ -394,7 +398,7 @@ func main() {
 	var configs []*tunnelConfig
 	if flag.NArg() != 0 {
 		printUsage()
-		fmt.Fprintln(os.Stderr, "错误: 不支持直接传接口名称，请使用 -c/--confile 指定 .conf 或 .zip 配置文件")
+		fmt.Fprintln(os.Stderr, "错误: 不支持直接传接口名称，请使用 -c/--confile 指定 .conf、.zip 或配置目录")
 		os.Exit(ExitSetupFailed)
 	}
 	if strings.TrimSpace(confile) == "" {

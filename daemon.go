@@ -50,9 +50,9 @@ func getDefaultConfilePath() string {
 		exePath, err := os.Executable()
 		if err == nil {
 			exeDir := filepath.Dir(exePath)
-			return filepath.Join(exeDir, defaultConfileSubdirWindows, defaultConfileName)
+			return filepath.Join(exeDir, defaultConfileSubdirWindows)
 		}
-		return filepath.Join(defaultConfileSubdirWindows, defaultConfileName)
+		return defaultConfileSubdirWindows
 	}
 	if runtime.GOOS == "darwin" {
 		confileDir := defaultConfileDirDarwinAppleSilicon

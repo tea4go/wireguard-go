@@ -45,6 +45,51 @@ type peerConfig struct {
 
 func loadTunnelConfigs(path string) ([]*tunnelConfig, []string) {
 	var warnings []string
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, []string{fmt.Sprintf("读取配置路径失败, %v", err)}
+	}
+
+	if info.IsDir() {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return nil, []string{fmt.Sprintf("读取配置目录失败, %v", err)}
+		}
+
+		confEntries := make([]os.DirEntry, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			if strings.EqualFold(filepath.Ext(entry.Name()), ".conf") {
+				confEntries = append(confEntries, entry)
+			}
+		}
+		if len(confEntries) == 0 {
+			return nil, []string{fmt.Sprintf("目录中未找到 .conf 配置文件 (%s)", path)}
+		}
+
+		sort.Slice(confEntries, func(i, j int) bool {
+			return strings.ToLower(confEntries[i].Name()) < strings.ToLower(confEntries[j].Name())
+		})
+
+		configs := make([]*tunnelConfig, 0, len(confEntries))
+		for _, entry := range confEntries {
+			confPath := filepath.Join(path, entry.Name())
+			data, err := os.ReadFile(confPath)
+			if err != nil {
+				warnings = append(warnings, fmt.Sprintf("读取目录内配置文件失败, %v (%s)", err, confPath))
+				continue
+			}
+			cfg, cfgWarnings := parseTunnelConfig(data, confPath)
+			warnings = append(warnings, cfgWarnings...)
+			if cfg == nil {
+				continue
+			}
+			configs = append(configs, cfg)
+		}
+		return configs, warnings
+	}
 
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".conf":

@@ -179,6 +179,39 @@ func TestLoadTunnelConfigsFromConf(t *testing.T) {
 	}
 }
 
+func TestLoadTunnelConfigsFromDirectory(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"notes.txt":    "ignore me",
+		"branch1.conf": "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x31) + "\n",
+		"branch0.conf": "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x30) + "\nMTU = 1380\n",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("WriteFile(%q): %v", name, err)
+		}
+	}
+
+	cfgs, warnings := loadTunnelConfigs(dir)
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
+	}
+
+	if got, want := len(cfgs), 2; got != want {
+		t.Fatalf("expected %d configs, got %d", want, got)
+	}
+
+	if got, want := cfgs[0].InterfaceName, "branch0"; got != want {
+		t.Fatalf("expected first interface name %q, got %q", want, got)
+	}
+	if got, want := cfgs[1].InterfaceName, "branch1"; got != want {
+		t.Fatalf("expected second interface name %q, got %q", want, got)
+	}
+	if got, want := cfgs[0].MTU, 1380; got != want {
+		t.Fatalf("expected first MTU %d, got %d", want, got)
+	}
+}
+
 func TestDescribeTunnelConfig(t *testing.T) {
 	conf := strings.Join([]string{
 		"[Interface]",
