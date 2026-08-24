@@ -115,7 +115,7 @@ type runningInterface struct {
 }
 
 func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
-	logs.Debug("接口 %s: 开始创建 TUN", cfg.InterfaceName)
+	logs.Debug("[%s] 开始创建 TUN", cfg.InterfaceName)
 	logger := device.NewLogger(
 		logs.GetLevel("file"),
 		fmt.Sprintf("%s", cfg.InterfaceName),
@@ -126,7 +126,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("创建 TUN 设备失败, %w", err)
 	}
-	logs.Debug("接口 %s: TUN 创建成功", cfg.InterfaceName)
+	logs.Debug("[%s] TUN 创建成功", cfg.InterfaceName)
 
 	interfaceName := cfg.InterfaceName
 	if realInterfaceName, err := tunDevice.Name(); err == nil {
@@ -134,45 +134,45 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	}
 
 	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), logger)
-	logger.Debug("配置: %s", describeTunnelConfig(cfg))
+	logger.Info("配置: %s", describeTunnelConfig(cfg))
 	for _, peer := range cfg.Peers {
-		logger.Debug("= 节点: %s", describePeerConfig(peer))
+		logger.Info("= 节点: %s", describePeerConfig(peer))
 	}
 	if cfg.UAPI != "" {
-		logs.Debug("接口 %s: 开始应用 WireGuard 配置", interfaceName)
+		logs.Info("[%s] 开始应用 WireGuard 配置", interfaceName)
 		if err := dev.IpcSet(cfg.UAPI); err != nil {
 			dev.Close()
 			return nil, fmt.Errorf("应用配置失败, %w", err)
 		}
-		logs.Debug("接口 %s: WireGuard 配置应用成功", interfaceName)
 		if cfg.MTU > 0 {
-			logger.Debug("已从配置中应用 MTU=%s", strconv.Itoa(cfg.MTU))
+			logger.Debug("UAPI：已从配置中应用 MTU=%s", strconv.Itoa(cfg.MTU))
 		}
+		logs.Info("[%s] WireGuard 配置应用成功", interfaceName)
 	}
 
 	if err := dev.Up(); err != nil {
 		dev.Close()
 		return nil, fmt.Errorf("启动设备失败, %w", err)
 	}
-	logs.Debug("接口 %s: 设备启动成功", interfaceName)
+	logs.Notice("[%s] 设备启动成功", interfaceName)
 
 	if len(cfg.Addresses) > 0 {
-		logs.Debug("接口 %s: 开始应用接口地址", interfaceName)
+		logs.Debug("[%s] 开始应用 %d 个接口地址", interfaceName, len(cfg.Addresses))
 		addressWarnings := applyInterfaceAddresses(interfaceName, cfg.Addresses)
 		if len(addressWarnings) == 0 {
-			logs.Debug("接口 %s: 接口地址应用完成", interfaceName)
+			logs.Debug("[%s] 接口地址应用完成 %d 个地址", interfaceName, len(cfg.Addresses))
 		} else {
 			for _, warning := range addressWarnings {
-				logs.Error(warning)
+				logs.Warning(warning)
 			}
 		}
 	}
 
-	logs.Debug("接口 %s: 开始关闭 IPv6 绑定", interfaceName)
+	logs.Info("[%s] 开始关闭 IPv6 绑定", interfaceName)
 	if err := disableInterfaceIPv6(interfaceName); err != nil {
-		logs.Error("接口 %s: 关闭 IPv6 绑定失败, %v", interfaceName, err)
+		logs.Warning("[%s] 关闭 IPv6 绑定失败, %v", interfaceName, err)
 	} else {
-		logs.Debug("接口 %s: IPv6 绑定已关闭", interfaceName)
+		logs.Info("[%s] IPv6 绑定已关闭", interfaceName)
 	}
 
 	uapi, err := ipc.UAPIListen(interfaceName)
@@ -180,7 +180,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 		dev.Close()
 		return nil, fmt.Errorf("UAPI 监听失败, %w", err)
 	}
-	logs.Debug("接口 %s: UAPI 监听已启动", interfaceName)
+	logs.Info("[%s] UAPI 监听已启动", interfaceName)
 
 	return &runningInterface{
 		name:   interfaceName,
@@ -349,9 +349,6 @@ func main() {
 	for _, warning := range warnings {
 		logs.Error("配置告警: %s", warning)
 	}
-	for _, cfg := range configs {
-		logs.Debug("配置: %s", describeTunnelConfig(cfg))
-	}
 
 	if err := tun.CheckWintunReady(); err != nil {
 		logs.Error(err)
@@ -371,7 +368,7 @@ func main() {
 	for _, cfg := range configs {
 		ri, err := startConfiguredInterface(cfg)
 		if err != nil {
-			logs.Error("启动接口 %s 失败: %v", cfg.InterfaceName, err)
+			logs.Error("启动接口 %s 失败, %v", cfg.InterfaceName, err)
 			continue
 		}
 		running = append(running, ri)
@@ -400,10 +397,10 @@ func main() {
 			logs.Notice("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
 			for _, ri := range running {
 				if err := ri.device.HandleNetworkChange(); err != nil {
-					logs.Error("接口 %s: 网络变化恢复失败: %v", ri.name, err)
+					logs.Error("[%s] 网络变化恢复失败: %v", ri.name, err)
 					continue
 				}
-				logs.Notice("接口 %s: 网络变化恢复完成", ri.name)
+				logs.Notice("[%s] 网络变化恢复完成", ri.name)
 			}
 		})
 		if err != nil {

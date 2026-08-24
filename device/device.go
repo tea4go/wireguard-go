@@ -139,9 +139,10 @@ func removePeerLocked(device *Device, peer *Peer, key NoisePublicKey) {
 func (device *Device) changeState(want deviceState) (err error) {
 	device.state.Lock()
 	defer device.state.Unlock()
+
 	old := device.deviceState()
 	if old == deviceStateClosed {
-		device.log.Verbosef("接口已关闭，忽略请求的状态 %s", want)
+		device.log.Info("接口已关闭，忽略请求的状态 %s", want)
 		return nil
 	}
 	switch want {
@@ -161,7 +162,7 @@ func (device *Device) changeState(want deviceState) (err error) {
 			err = errDown
 		}
 	}
-	device.log.Notice("接口原状态为 %s，请求状态为 %s，当前状态为 %s", old, want, device.deviceState())
+	device.log.Info("状态 [%s -> %s]，当前为 %s", old, want, device.deviceState())
 	return
 }
 

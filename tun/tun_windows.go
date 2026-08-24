@@ -119,13 +119,14 @@ func CheckWintunReady() error {
 	driverVersion, err := wintun.RunningVersion()
 	if err != nil {
 		if errors.Is(err, windows.ERROR_FILE_NOT_FOUND) {
-			logs.Warning("[Wintun] 检测到 wintun.dll v%s 已加载，但内核驱动尚未安装或未启动。", dllVersion)
-			logs.Warning("[Wintun] 首次创建适配器时将自动安装驱动，请确认程序以管理员权限运行。")
+			logs.Info("[Wintun] 检测到 wintun.dll v%s 已加载，但内核驱动尚未安装或未启动。", dllVersion)
+			logs.Info("[Wintun] 首次创建适配器时将自动安装驱动，请确认程序以管理员权限运行。")
 		} else {
 			logs.Warning("[Wintun] 检测到 wintun.dll v%s 已加载，但查询驱动版本失败, %v；", dllVersion, err)
 			logs.Warning("[Wintun] 将尝试直接创建适配器，若失败请确认驱动安装情况与权限。")
+			logs.Warning("[Wintun] %v", err)
 		}
-		logs.Warning("[Wintun] 错误信息, %v", err)
+
 		return nil
 	}
 	logs.Notice("[Wintun] 就绪：wintun.dll v%s，已加载驱动版本 0x%08x", dllVersion, driverVersion)

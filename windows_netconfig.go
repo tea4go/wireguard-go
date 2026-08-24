@@ -87,14 +87,14 @@ func applyInterfaceAddresses(interfaceName string, addresses []string) []string 
 	commands, warnings := buildNetshAddressCommands(interfaceName, addresses)
 	if len(commands) == 0 {
 		if len(addresses) > 0 {
-			warnings = append(warnings, fmt.Sprintf("接口 %s: 没有可应用的有效地址", interfaceName))
+			warnings = append(warnings, fmt.Sprintf("[%s] 没有可应用的有效地址", interfaceName))
 		}
 		return warnings
 	}
 
 	for _, command := range commands {
 		if err := runNetshCommand(command); err != nil {
-			warnings = append(warnings, fmt.Sprintf("接口 %s: 地址命令执行失败: %s | %v", interfaceName, command.String(), err))
+			warnings = append(warnings, fmt.Sprintf("[%s] 地址命令执行失败: %s | %v", interfaceName, command.String(), err))
 		}
 	}
 	return warnings

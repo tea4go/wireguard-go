@@ -8,6 +8,7 @@ package device
 import (
 	"bufio"
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tea4go/gh/utils"
 	"golang.zx2c4.com/wireguard/ipc"
 )
 
@@ -202,7 +204,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set private_key, %w", err)
 		}
-		device.log.Info("UAPI：正在更新私钥")
+		device.log.Debug("UAPI：正在更新私钥 (%s)", utils.GetShowKey(hex.EncodeToString(sk[:])))
 		device.SetPrivateKey(sk)
 
 	case "listen_port":
@@ -212,7 +214,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		}
 
 		// update port and rebind
-		device.log.Info("UAPI：正在更新监听端口")
+		device.log.Debug("UAPI：正在更新监听端口 (%d)", port)
 
 		device.net.Lock()
 		device.net.port = uint16(port)
@@ -228,7 +230,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 			return ipcErrorf(ipc.IpcErrorInvalid, "invalid fwmark, %w", err)
 		}
 
-		device.log.Info("UAPI：正在更新 fwmark")
+		device.log.Debug("UAPI：正在更新 fwmark")
 		if err := device.BindSetMark(uint32(mark)); err != nil {
 			return ipcErrorf(ipc.IpcErrorPortInUse, "failed to update fwmark, %w", err)
 		}
@@ -237,7 +239,7 @@ func (device *Device) handleDeviceLine(key, value string) error {
 		if value != "true" {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set replace_peers, invalid value: %v", value)
 		}
-		device.log.Notice("UAPI：正在移除所有对端")
+		device.log.Debug("UAPI：正在移除所有对端")
 		device.RemoveAllPeers()
 
 	default:
