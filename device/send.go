@@ -115,7 +115,7 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.log.Info("%v - 正在发送握手发起消息", peer)
+	peer.device.log.Debug("%v - 正在发送握手发起消息", peer)
 
 	msg, err := peer.device.CreateMessageInitiation(peer)
 	if err != nil {

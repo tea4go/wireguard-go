@@ -401,7 +401,7 @@ func (device *Device) RoutineHandshake(id int) {
 			// update endpoint
 			peer.SetEndpointFromPacket(elem.endpoint)
 
-			device.log.Info("%v - 收到握手响应消息", peer)
+			device.log.Notice("%v - 收到握手响应消息", peer)
 			peer.rxBytes.Add(uint64(len(elem.packet)))
 
 			// update timers

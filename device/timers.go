@@ -139,7 +139,7 @@ func expiredSendKeepalive(peer *Peer) {
 // expiredNewHandshake 新建握手定时器到期回调。
 // 当发送数据后超过 (KeepaliveTimeout + RekeyTimeout) 未收到任何响应时触发。
 func expiredNewHandshake(peer *Peer) {
-	peer.device.log.Info("%s - 由于在 %d 秒内未收到对端响应，正在重试握手", peer, int((KeepaliveTimeout + RekeyTimeout).Seconds()))
+	peer.device.log.Debug("%s - 由于在 %d 秒内未收到对端响应，正在重试握手", peer, int((KeepaliveTimeout + RekeyTimeout).Seconds()))
 	/* 清除端点源地址，以防该地址是导致通信失败的原因。 */
 	peer.markEndpointSrcForClearing()
 	// 发送新的握手发起消息（false 表示非重传，触发新一轮密钥交换）
