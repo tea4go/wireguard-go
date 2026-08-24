@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const windowsNetworkChangeDebounce = 1500 * time.Millisecond
+const windowsNetworkChangeDebounce = 6000 * time.Millisecond
 
 type netChangeEvent struct {
 	kind       string
@@ -137,6 +137,10 @@ func formatNetChangeSummary(eventCount int, details []string) string {
 		return fmt.Sprintf("%d 次系统通知", eventCount)
 	}
 	return fmt.Sprintf("%d 次系统通知: %s", eventCount, strings.Join(details, "; "))
+}
+
+func isActionableNetChangeEvent(evt netChangeEvent) bool {
+	return !(evt.kind == "IpInterface" && evt.notifyType == windows.MibParameterNotification)
 }
 
 var windowsInterfaceChangeCallback = syscall.NewCallback(func(callerContext, rowPtr uintptr, notificationType uint32) uintptr {
@@ -265,6 +269,9 @@ func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{},
 	for {
 		select {
 		case evt := <-changes:
+			if !isActionableNetChangeEvent(evt) {
+				continue
+			}
 			eventsInWindow++
 			if len(nonExcludedEvents) < 8 {
 				nonExcludedEvents = append(nonExcludedEvents, evt)
