@@ -2,6 +2,8 @@
 
 This is an implementation of WireGuard in Go.
 
+> 📖 **Read in other languages**: [简体中文](README_zhCN.md)
+
 ## Usage
 
 Most Linux kernel WireGuard users are used to adding an interface with `ip link add wg0 type wireguard`. With wireguard-go, instead simply run:

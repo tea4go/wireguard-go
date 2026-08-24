@@ -36,11 +36,11 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "用法: %s [-c 配置文件.conf|配置包.zip] <接口名称>\n", filepath.Base(os.Args[0]))
 }
 
-// 标准程序块
+// 标准程序块：版本号 / 构建时间 / 是否 Beta 由构建系统通过 -ldflags "-X main.appVer=..." 方式注入
 var appName string = "wireguard-go"
-var appVer string = "v1.1.1"
-var IsBeta string
-var BuildTime string
+var appVer string = "v0.0.0-devel"
+var IsBeta string = ""
+var BuildTime string = ""
 
 func filepathJoin(elem ...string) string {
 	path := filepath.Join(elem...)
@@ -59,7 +59,7 @@ type runningInterface struct {
 func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	logs.Notice("接口 %s: 开始创建 TUN", cfg.InterfaceName)
 	logger := device.NewLogger(
-		device.LogLevelVerbose,
+		device.LogLevelNotice,
 		fmt.Sprintf("%s", cfg.InterfaceName),
 	)
 

@@ -2,6 +2,8 @@
 
 这是 WireGuard 的 Go 语言实现。
 
+> 📖 **其他语言版本**: [English](README.md)
+
 ## 使用方法
 
 大多数 Linux 内核 WireGuard 用户习惯于通过 `ip link add wg0 type wireguard` 来添加接口。使用 wireguard-go 时，只需运行：

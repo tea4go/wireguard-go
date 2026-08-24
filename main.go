@@ -21,6 +21,10 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
+// runtimeVersion 可由构建系统通过 -ldflags "-X main.runtimeVersion=vX.Y.Z" 方式注入版本号。
+// 未注入时将回退到 version.go 中的编译时常量 Version。
+var runtimeVersion string = ""
+
 const (
 	ExitSetupSuccess = 0
 	ExitSetupFailed  = 1
@@ -59,10 +63,13 @@ func warning() {
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
-		fmt.Printf("wireguard-go v%s\n\nUserspace WireGuard daemon for %s-%s.\nInformation available at https://www.wireguard.com.\nCopyright (C) Jason A. Donenfeld <Jason@zx2c4.com>.\n", Version, runtime.GOOS, runtime.GOARCH)
+		ver := Version
+		if runtimeVersion != "" {
+			ver = runtimeVersion
+		}
+		fmt.Printf("wireguard-go %s\n\nUserspace WireGuard daemon for %s-%s.\nInformation available at https://www.wireguard.com.\nCopyright (C) Jason A. Donenfeld <Jason@zx2c4.com>.\n", ver, runtime.GOOS, runtime.GOARCH)
 		return
 	}
-
 	warning()
 
 	var foreground bool
@@ -95,18 +102,30 @@ func main() {
 		foreground = os.Getenv(ENV_WG_PROCESS_FOREGROUND) == "1"
 	}
 
-	// get log level (default: info)
+	// get log level（根据 logger.go 新增的多级常量做全映射，默认 Notice）
 
 	logLevel := func() int {
 		switch os.Getenv("LOG_LEVEL") {
 		case "verbose", "debug":
 			return device.LogLevelVerbose
+		case "info":
+			return device.LogLevelInfo
+		case "notice":
+			return device.LogLevelNotice
+		case "warning", "warn":
+			return device.LogLevelWarning
 		case "error":
 			return device.LogLevelError
+		case "critical":
+			return device.LogLevelCritical
+		case "alert":
+			return device.LogLevelAlert
+		case "emergency":
+			return device.LogLevelEmergency
 		case "silent":
 			return device.LogLevelSilent
 		}
-		return device.LogLevelError
+		return device.LogLevelNotice
 	}()
 
 	// open TUN device (or use supplied fd)
@@ -145,7 +164,11 @@ func main() {
 		fmt.Sprintf("(%s) ", interfaceName),
 	)
 
-	logger.Verbosef("Starting wireguard-go version %s", Version)
+	ver := Version
+	if runtimeVersion != "" {
+		ver = runtimeVersion
+	}
+	logger.Verbosef("启动 wireguard-go 版本 %s", ver)
 
 	if err != nil {
 		logger.Errorf("Failed to create TUN device: %v", err)
