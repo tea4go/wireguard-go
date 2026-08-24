@@ -8,3 +8,4 @@ conf/
 .gotmp/
 .gomodcache/
 wireguard-go.pid
+VERSION.txt

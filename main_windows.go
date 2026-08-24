@@ -317,6 +317,19 @@ func main() {
 		defer daemonMgr.RemovePidFile()
 	}
 
+	isAdmin := IsRunningAsAdmin()
+	logs.Notice("[权限] 守护进程管理员权限: %v", isAdmin)
+	if !isAdmin {
+		logs.Warning("[权限] 警告: 当前进程未以管理员权限运行，驱动安装与网络配置可能失败。" +
+			"请确保以管理员身份启动主程序，或右键选择\"以管理员身份运行\"。")
+	} else {
+		if err := EnableAllPrivileges(); err != nil {
+			logs.Warning("[权限] 启用所有可用特权失败（非致命）: %v", err)
+		} else {
+			logs.Notice("[权限] 已启用 token 中所有可用特权（驱动安装、网络配置等所需）")
+		}
+	}
+
 	var configs []*tunnelConfig
 	if flag.NArg() != 0 {
 		printUsage()
