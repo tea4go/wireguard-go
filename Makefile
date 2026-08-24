@@ -43,7 +43,7 @@ endif
 BUILD_DATE ?= $(shell date -u +%Y%m%d)
 BUILD_HHMM ?= $(shell date -u +%H%M)
 APP_VER_FULL ?= $(APP_TAG)_B$(BUILD_DATE)_$(BUILD_HHMM)
-BUILD_TIME ?= $(shell date -u '+%Y-%m-%d %H:%M:%S')
+BUILD_TIME ?= $(shell date -u '+%Y-%m-%d(%H:%M:%S)')
 IS_BETA ?=
 
 # Go toolchain settings
@@ -108,7 +108,7 @@ showenv:
 	@echo "BUILD_DATE   = $(BUILD_DATE)   (YYYYMMDD)"
 	@echo "BUILD_HHMM   = $(BUILD_HHMM)   (HHmm)"
 	@echo "APP_VER_FULL = $(APP_VER_FULL)   (example: v3.0.1_B20060930_0930)"
-	@echo "BUILD_TIME   = $(BUILD_TIME)   (yyyy-mm-dd hh:mm:ss)"
+	@echo "BUILD_TIME   = $(BUILD_TIME)   (yyyy-mm-dd(hh:mm:ss))"
 	@echo "IS_BETA      = $(IS_BETA)"
 	@echo "LDFLAGS      = $(LDFLAGS)"
 	@echo "GO           = $(GO)"

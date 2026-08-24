@@ -37,8 +37,8 @@ func printUsage() {
 }
 
 // 标准程序块：版本号 / 构建时间 / 是否 Beta 由构建系统通过 -ldflags "-X main.appVer=..." 方式注入
-var appName string = "wireguard-go"
-var appVer string = "v0.0.0-devel"
+var appName string = "WireGuard"
+var appVer string = "0.0.1"
 var IsBeta string = ""
 var BuildTime string = ""
 

@@ -63,11 +63,11 @@ func warning() {
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
-		ver := Version
+		ver := appVer
 		if runtimeVersion != "" {
 			ver = runtimeVersion
 		}
-		fmt.Printf("wireguard-go %s\n\nUserspace WireGuard daemon for %s-%s.\nInformation available at https://www.wireguard.com.\nCopyright (C) Jason A. Donenfeld <Jason@zx2c4.com>.\n", ver, runtime.GOOS, runtime.GOARCH)
+		fmt.Printf("wireguard-go %s\n\nUserspace WireGuard daemon for %s-%s.\nInformation available at https://www.wireguard.com.\nCopyright (C) Jason A. Donenfeld <jason@zx2c4.com>.\n", ver, runtime.GOOS, runtime.GOARCH)
 		return
 	}
 	warning()
@@ -164,7 +164,7 @@ func main() {
 		fmt.Sprintf("(%s) ", interfaceName),
 	)
 
-	ver := Version
+	ver := appVer
 	if runtimeVersion != "" {
 		ver = runtimeVersion
 	}
