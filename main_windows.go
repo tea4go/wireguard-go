@@ -274,9 +274,10 @@ func main() {
 	}
 
 	logs.Notice("当前启动参数")
-	logs.Notice("= Foreground ...... %v", *pforeground)
-	logs.Notice("= Daemon .......... %v", *pdaemon)
-	logs.Notice("= Confile ......... %s", confile)
+	logs.Notice("= Foreground ....... %v", *pforeground)
+	logs.Notice("= Daemon ........... %v", *pdaemon)
+	logs.Notice("= Confile .......... %s", confile)
+	logs.Notice("= LogLevel ......... %s", os.Getenv("log_level"))
 	if !*pforeground && !*pdaemon {
 		logs.Notice("准备启动守护进程 ......")
 		daemonMgr := NewDaemonManager()

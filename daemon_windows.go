@@ -130,7 +130,11 @@ func EnableAllPrivileges() error {
 	}
 	privSlice := unsafe.Slice(&privs.Privileges[0], count)
 
-	newPrivs := windows.Tokenprivileges{PrivilegeCount: count}
+	luidAttrSize := unsafe.Sizeof(windows.LUIDAndAttributes{})
+	newBufSize := unsafe.Sizeof(uint32(0)) + uintptr(count)*luidAttrSize
+	newBuf := make([]byte, newBufSize)
+	newPrivs := (*windows.Tokenprivileges)(unsafe.Pointer(&newBuf[0]))
+	newPrivs.PrivilegeCount = count
 	newPrivSlice := unsafe.Slice(&newPrivs.Privileges[0], count)
 
 	for i := uint32(0); i < count; i++ {
@@ -138,7 +142,7 @@ func EnableAllPrivileges() error {
 		newPrivSlice[i].Attributes = windows.SE_PRIVILEGE_ENABLED
 	}
 
-	_ = windows.AdjustTokenPrivileges(token, false, &newPrivs,
-		uint32(unsafe.Sizeof(newPrivs)), nil, nil)
+	_ = windows.AdjustTokenPrivileges(token, false, newPrivs,
+		uint32(newBufSize), nil, nil)
 	return nil
 }
