@@ -34,7 +34,7 @@ type windowsNetworkMonitor struct {
 	stop                chan struct{}
 	done                chan struct{}
 	closeOnce           sync.Once
-	onChange            func(summary string)
+	onChange            func(changeCount int, details []string)
 	excludedLuids       map[uint64]string
 	lastDetailLogged    atomic.Bool
 }
@@ -134,9 +134,9 @@ func formatNetChangeDetail(evt netChangeEvent) string {
 
 func formatNetChangeSummary(eventCount int, details []string) string {
 	if len(details) == 0 {
-		return fmt.Sprintf("%d 次系统通知", eventCount)
+		return fmt.Sprintf("没有系统通知")
 	}
-	return fmt.Sprintf("%d 次系统通知: %s", eventCount, strings.Join(details, "; "))
+	return fmt.Sprintf("%s", strings.Join(details, "; "))
 }
 
 func isActionableNetChangeEvent(evt netChangeEvent) bool {
@@ -192,7 +192,7 @@ var windowsUnicastChangeCallback = syscall.NewCallback(func(callerContext, rowPt
 	return 0
 })
 
-func startWindowsNetworkMonitor(onChange func(summary string), excludedLuids map[uint64]string) (*windowsNetworkMonitor, error) {
+func startWindowsNetworkMonitor(onChange func(changeCount int, details []string), excludedLuids map[uint64]string) (*windowsNetworkMonitor, error) {
 	monitor := &windowsNetworkMonitor{
 		token:         windowsNetworkMonitorSeq.Add(1),
 		changes:       make(chan netChangeEvent, 16),
@@ -201,8 +201,8 @@ func startWindowsNetworkMonitor(onChange func(summary string), excludedLuids map
 		excludedLuids: excludedLuids,
 	}
 	if onChange != nil {
-		monitor.onChange = func(summary string) {
-			onChange(summary)
+		monitor.onChange = func(changeCount int, details []string) {
+			onChange(changeCount, details)
 		}
 	}
 	windowsNetworkMonitors.Store(monitor.token, monitor)
@@ -260,7 +260,7 @@ func enqueueWindowsNetworkChange(token uintptr, evt netChangeEvent) {
 	}
 }
 
-func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{}, debounce time.Duration, onChange func(summary string), excludedLuids map[uint64]string) {
+func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{}, debounce time.Duration, onChange func(changeCount int, details []string), excludedLuids map[uint64]string) {
 	var timer *time.Timer
 	var timerC <-chan time.Time
 	var eventsInWindow int
@@ -312,7 +312,7 @@ func runDebouncedSignalLoop(changes <-chan netChangeEvent, stop <-chan struct{},
 			summary := formatNetChangeSummary(realCount, details)
 			logs.Debug("[NetMon] 防抖窗口内有效 %d 次: %s", realCount, summary)
 			if onChange != nil {
-				onChange(summary)
+				onChange(realCount, details)
 			}
 
 		case <-stop:

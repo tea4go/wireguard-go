@@ -410,12 +410,9 @@ func main() {
 		}
 		var err error
 		networkMonitor, err = startWindowsNetworkMonitor(
-			func(summary string) {
-				if summary == "" {
-					logs.Notice("检测到本地网络变化，开始刷新 WireGuard UDP 绑定")
-				} else {
-					logs.Notice("检测到本地网络变化（%s），开始刷新 WireGuard UDP 绑定", summary)
-				}
+			func(changeCount int, details []string) {
+				logs.Notice("检测到本地网络变化（%d 个事件），开始刷新 WireGuard UDP 绑定", changeCount)
+
 				for _, ri := range running {
 					if err := ri.device.HandleNetworkChange(); err != nil {
 						logs.Error("[%s] 网络变化恢复失败: %v", ri.name, err)

@@ -13,13 +13,15 @@ func TestRunDebouncedSignalLoopCoalescesBursts(t *testing.T) {
 	changes := make(chan netChangeEvent, 8)
 	stop := make(chan struct{})
 	var calls atomic.Int32
-	summaries := make(chan string, 2)
+	counts := make(chan int, 2)
+	detailsCh := make(chan []string, 2)
 	done := make(chan struct{})
 
 	go func() {
-		runDebouncedSignalLoop(changes, stop, 40*time.Millisecond, func(summary string) {
+		runDebouncedSignalLoop(changes, stop, 40*time.Millisecond, func(changeCount int, details []string) {
 			calls.Add(1)
-			summaries <- summary
+			counts <- changeCount
+			detailsCh <- details
 		}, nil)
 		close(done)
 	}()
@@ -36,7 +38,11 @@ func TestRunDebouncedSignalLoopCoalescesBursts(t *testing.T) {
 		t.Fatalf("expected %d callback, got %d", want, got)
 	}
 
-	summary := <-summaries
+	if got, want := <-counts, 3; got != want {
+		t.Fatalf("expected change count %d, got %d", want, got)
+	}
+	details := <-detailsCh
+	summary := formatNetChangeSummary(len(details), details)
 	for _, want := range []string{
 		"3 次系统通知",
 		"IpInterface-Add@IfIndex#7(family=IPv4)",
@@ -56,7 +62,7 @@ func TestRunDebouncedSignalLoopHandlesSeparatedEvents(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		runDebouncedSignalLoop(changes, stop, 30*time.Millisecond, func(string) {
+		runDebouncedSignalLoop(changes, stop, 30*time.Millisecond, func(int, []string) {
 			calls.Add(1)
 		}, nil)
 		close(done)
@@ -82,7 +88,7 @@ func TestRunDebouncedSignalLoopIgnoresIpInterfaceParamOnly(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		runDebouncedSignalLoop(changes, stop, 30*time.Millisecond, func(string) {
+		runDebouncedSignalLoop(changes, stop, 30*time.Millisecond, func(int, []string) {
 			calls.Add(1)
 		}, nil)
 		close(done)
@@ -103,13 +109,15 @@ func TestRunDebouncedSignalLoopKeepsMeaningfulEventsWhenMixed(t *testing.T) {
 	changes := make(chan netChangeEvent, 8)
 	stop := make(chan struct{})
 	var calls atomic.Int32
-	summaries := make(chan string, 2)
+	counts := make(chan int, 2)
+	detailsCh := make(chan []string, 2)
 	done := make(chan struct{})
 
 	go func() {
-		runDebouncedSignalLoop(changes, stop, 30*time.Millisecond, func(summary string) {
+		runDebouncedSignalLoop(changes, stop, 30*time.Millisecond, func(changeCount int, details []string) {
 			calls.Add(1)
-			summaries <- summary
+			counts <- changeCount
+			detailsCh <- details
 		}, nil)
 		close(done)
 	}()
@@ -125,7 +133,11 @@ func TestRunDebouncedSignalLoopKeepsMeaningfulEventsWhenMixed(t *testing.T) {
 		t.Fatalf("expected %d callback, got %d", want, got)
 	}
 
-	summary := <-summaries
+	if got, want := <-counts, 1; got != want {
+		t.Fatalf("expected change count %d, got %d", want, got)
+	}
+	details := <-detailsCh
+	summary := formatNetChangeSummary(len(details), details)
 	if strings.Contains(summary, "IpInterface-Param@WLAN") {
 		t.Fatalf("expected summary to filter IpInterface Param noise, got %q", summary)
 	}
