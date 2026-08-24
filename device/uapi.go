@@ -254,15 +254,20 @@ func (device *Device) handleDeviceLine(key, value string) error {
 
 // An ipcSetPeer is the current state of an IPC set operation on a peer.
 type ipcSetPeer struct {
-	*Peer        // Peer is the current peer being operated on
-	dummy   bool // dummy reports whether this peer is a temporary, placeholder peer
-	created bool // new reports whether this is a newly created peer
-	pkaOn   bool // pkaOn reports whether the peer had the persistent keepalive turn on
+	*Peer                   // Peer is the current peer being operated on
+	dummy              bool // dummy reports whether this peer is a temporary, placeholder peer
+	created            bool // new reports whether this is a newly created peer
+	pkaOn              bool // pkaOn reports whether the peer had the persistent keepalive turn on
+	pendingCreationLog bool
 }
 
 func (peer *ipcSetPeer) handlePostConfig() {
 	if peer.Peer == nil || peer.dummy {
 		return
+	}
+	if peer.pendingCreationLog {
+		peer.device.log.Notice("%v - UAPI：已创建", peer.Peer)
+		peer.pendingCreationLog = false
 	}
 	if peer.created {
 		peer.endpoint.disableRoaming = peer.device.net.brokenRoaming && peer.endpoint.val != nil
@@ -301,7 +306,7 @@ func (device *Device) handlePublicKeyLine(peer *ipcSetPeer, value string) error 
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to create new peer, %w", err)
 		}
-		device.log.Notice("%v - UAPI：已创建", peer.Peer)
+		peer.pendingCreationLog = true
 	}
 	return nil
 }
@@ -343,8 +348,12 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		}
 
 	case "name":
-		device.log.Info("%v - UAPI：正在更新名称", peer.Peer)
 		peer.Name = value
+		if peer.pendingCreationLog {
+			device.log.Notice("%v - UAPI：已创建", peer.Peer)
+			peer.pendingCreationLog = false
+		}
+		device.log.Info("%v - UAPI：正在更新名称", peer.Peer)
 
 	case "endpoint":
 		device.log.Info("%v - UAPI：正在更新端点", peer.Peer)
