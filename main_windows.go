@@ -430,7 +430,7 @@ func main() {
 			if len(excludedLuids) > 0 {
 				logs.Debug("[NetMon] 已排除 %d 个虚拟网卡的自触发通知: %v", len(excludedLuids), excludedLuids)
 			}
-			logs.Notice("Windows 网络变化监视已启动")
+			logs.Notice("Windows 网络变化监视已启动，去抖时间 %v", windowsNetworkChangeDebounce/2)
 		}
 	}
 
