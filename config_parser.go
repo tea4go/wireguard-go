@@ -248,10 +248,10 @@ func describePeerConfig(peer peerConfig) string {
 		"允许IP="+strings.Join(peer.allowedIPs, ","),
 	)
 	if peer.endpoint != "" {
-		parts = append(parts, "Endpoint="+peer.endpoint)
+		parts = append(parts, "对端="+peer.endpoint)
 	}
 	if peer.hasPersistentKeepaliveLine {
-		parts = append(parts, "保持连接="+peer.persistentKeepalive)
+		parts = append(parts, "保持="+peer.persistentKeepalive)
 	}
 	return strings.Join(parts, ",")
 }

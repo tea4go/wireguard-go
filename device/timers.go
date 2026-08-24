@@ -113,7 +113,7 @@ func expiredRetransmitHandshake(peer *Peer) {
 	} else {
 		// 未超过重试次数，继续重试握手
 		peer.timers.handshakeAttempts.Add(1)
-		peer.device.log.Info("%s - 经过 %d 秒后握手仍未完成，正在重试（第 %d 次尝试）", peer, int(RekeyTimeout.Seconds()), peer.timers.handshakeAttempts.Load()+1)
+		peer.device.log.Debug("%s - 经过 %d 秒后握手仍未完成，正在重试（第 %d 次尝试）", peer, int(RekeyTimeout.Seconds()), peer.timers.handshakeAttempts.Load()+1)
 
 		/* 清除端点源地址，以防该地址是导致握手失败的原因。 */
 		peer.markEndpointSrcForClearing()
@@ -139,7 +139,7 @@ func expiredSendKeepalive(peer *Peer) {
 // expiredNewHandshake 新建握手定时器到期回调。
 // 当发送数据后超过 (KeepaliveTimeout + RekeyTimeout) 未收到任何响应时触发。
 func expiredNewHandshake(peer *Peer) {
-	peer.device.log.Info("%s - 由于在 %d 秒内未收到对端响应，正在重试握手", peer, int((KeepaliveTimeout + RekeyTimeout).Seconds()))
+	peer.device.log.Debug("%s - 发送隧道数据后在 %d 秒内未收到新的对端认证响应，正在尝试重新握手", peer, int((KeepaliveTimeout + RekeyTimeout).Seconds()))
 	/* 清除端点源地址，以防该地址是导致通信失败的原因。 */
 	peer.markEndpointSrcForClearing()
 	// 发送新的握手发起消息（false 表示非重传，触发新一轮密钥交换）
@@ -218,6 +218,7 @@ func (peer *Peer) timersHandshakeComplete() {
 	peer.timers.sentLastMinuteHandshake.Store(false)
 	// 记录最后一次握手成功的时间戳（纳秒精度）
 	peer.lastHandshakeNano.Store(time.Now().UnixNano())
+	peer.device.log.Notice("%v - 握手已完成，会话已建立", peer)
 }
 
 /* 在创建临时密钥后调用——发送握手响应之前或收到握手响应之后。 */
