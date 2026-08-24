@@ -430,6 +430,8 @@ func main() {
 	deviceClosed := make(chan string, len(configs))
 
 	for _, cfg := range configs {
+		logs.Notice("==============================================================")
+		logs.Notice("加载配置文件 %s", cfg.Source)
 		ri, err := startConfiguredInterface(cfg)
 		if err != nil {
 			logs.Error("启动接口 %s 失败, %v", cfg.InterfaceName, err)
