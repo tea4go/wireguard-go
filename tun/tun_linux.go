@@ -891,6 +891,7 @@ func CreateTUN(name string, mtu int) (Device, error) {
 	// 构造 TUNSETIFF ioctl 需要的 ifreq 结构，填入接口名。
 	ifr, err := unix.NewIfreq(name)
 	if err != nil {
+		unix.Close(nfd)
 		return nil, err
 	}
 	// 设置接口类型标志：
@@ -909,7 +910,8 @@ func CreateTUN(name string, mtu int) (Device, error) {
 	// - 如果 name 已存在且是 TUN 类型，则尝试连接到该接口（需要权限和所有权匹配）。
 	err = unix.IoctlIfreq(nfd, unix.TUNSETIFF, ifr)
 	if err != nil {
-		return nil, err
+		unix.Close(nfd)
+		return nil, explainLinuxTUNCreateError("/sys/class/net", name, err)
 	}
 
 	// 将 fd 设置为非阻塞模式。
