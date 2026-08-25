@@ -337,7 +337,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		peer.dummy = true
 
 	case "preshared_key":
-		device.log.Info("%v - UAPI：正在更新预共享密钥", peer.Peer)
+		device.log.Debug("%v - UAPI：正在更新预共享密钥", peer.Peer)
 
 		peer.handshake.mutex.Lock()
 		err := peer.handshake.presharedKey.FromHex(value)
@@ -353,10 +353,10 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 			device.log.Notice("%v - UAPI：已创建", peer.Peer)
 			peer.pendingCreationLog = false
 		}
-		device.log.Info("%v - UAPI：正在更新名称", peer.Peer)
+		device.log.Debug("%v - UAPI：正在更新名称", peer.Peer)
 
 	case "endpoint":
-		device.log.Info("%v - UAPI：正在更新端点", peer.Peer)
+		device.log.Debug("%v - UAPI：正在更新端点", peer.Peer)
 		endpoint, err := device.net.bind.ParseEndpoint(value)
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set endpoint %v, %w", value, err)
@@ -366,7 +366,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		peer.endpoint.val = endpoint
 
 	case "persistent_keepalive_interval":
-		device.log.Info("%v - UAPI：正在更新持久保活间隔", peer.Peer)
+		device.log.Debug("%v - UAPI：正在更新保活", peer.Peer)
 
 		secs, err := strconv.ParseUint(value, 10, 16)
 		if err != nil {
@@ -379,7 +379,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		peer.pkaOn = old == 0 && secs != 0
 
 	case "replace_allowed_ips":
-		device.log.Info("%v - UAPI：正在移除所有 allowed_ip", peer.Peer)
+		device.log.Debug("%v - UAPI：正在移除所有 allowed_ip", peer.Peer)
 		if value != "true" {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to replace allowedips, invalid value: %v", value)
 		}
