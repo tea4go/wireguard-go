@@ -140,7 +140,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("创建 TUN 设备失败, %w", err)
 	}
-	logs.Notice("[%s] TUN 创建成功", cfg.InterfaceName)
+	logs.Info("[%s] TUN 创建成功", cfg.InterfaceName)
 
 	interfaceName := cfg.InterfaceName
 	if realInterfaceName, err := tunDevice.Name(); err == nil {
