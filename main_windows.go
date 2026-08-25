@@ -153,7 +153,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 		logger.Info("= 节点: %s", describePeerConfig(peer))
 	}
 	if cfg.UAPI != "" {
-		logs.Info("[%s] 开始应用 WireGuard 配置", interfaceName)
+		logs.Debug("[%s] 开始应用 WireGuard 配置", interfaceName)
 		if err := dev.IpcSet(cfg.UAPI); err != nil {
 			dev.Close()
 			return nil, fmt.Errorf("应用配置失败, %w", err)

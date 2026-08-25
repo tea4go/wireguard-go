@@ -319,7 +319,7 @@ func (peer *ipcSetPeer) handlePostConfig() {
 		return
 	}
 	if peer.pendingCreationLog {
-		peer.device.log.Notice("%v - UAPI：已创建", peer.Peer)
+		peer.device.log.Debug("%v - UAPI：已创建", peer.Peer)
 		peer.pendingCreationLog = false
 	}
 	// 新建 Peer brokenRoaming：若系统标记网络漫游 broken（某些平台），且已有固定 endpoint，则禁用自动漫游 endpoint 学习 disabled（禁止内核根据入包根据入站）
@@ -424,7 +424,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 		peer.Name = value
 		// 有 name 先打创建日志（没有 name 时打创建日志更可读）
 		if peer.pendingCreationLog {
-			device.log.Notice("%v - UAPI：已创建", peer.Peer)
+			device.log.Debug("%v - UAPI：已创建", peer.Peer)
 			peer.pendingCreationLog = false
 		}
 		device.log.Debug("%v - UAPI：正在更新名称", peer.Peer)
