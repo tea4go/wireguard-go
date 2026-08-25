@@ -97,7 +97,7 @@ func (peer *Peer) timersActive() bool {
 func expiredRetransmitHandshake(peer *Peer) {
 	if peer.timers.handshakeAttempts.Load() > MaxTimerHandshakes {
 		// 握手尝试次数超过上限，放弃握手
-		peer.device.log.Warningf("%s - 经过 %d 次尝试后握手仍未完成，放弃连接", peer, MaxTimerHandshakes+2)
+		peer.device.log.Info("%s - 经过 %d 次尝试后握手仍未完成，放弃连接", peer, MaxTimerHandshakes+2)
 
 		if peer.timersActive() {
 			peer.timers.sendKeepalive.Del()

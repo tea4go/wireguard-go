@@ -19,47 +19,47 @@ import (
 )
 
 type Peer struct {
-	Name              string
-	isRunning         atomic.Bool
-	keypairs          Keypairs
-	handshake         Handshake
-	device            *Device
-	stopping          sync.WaitGroup // routines pending stop
-	txBytes           atomic.Uint64  // bytes send to peer (endpoint)
-	rxBytes           atomic.Uint64  // bytes received from peer
-	lastHandshakeNano atomic.Int64   // nano seconds since epoch
+	Name              string         // 自定义名称，若设置则在 String() 中优先显示
+	isRunning         atomic.Bool    // 运行状态标记，原子操作：true=正在运行，false=已停止
+	keypairs          Keypairs       // 密钥对集合（发送/接收密钥，含前向安全轮换）
+	handshake         Handshake      // 握手状态机（噪声协议相关：临时密钥、静态密钥等）
+	device            *Device        // 所属的 WireGuard 设备指针
+	stopping          sync.WaitGroup // 等待所有 goroutine 优雅退出的等待组
+	txBytes           atomic.Uint64  // 发送给对端的总字节数（累计统计）
+	rxBytes           atomic.Uint64  // 从对端接收的总字节数（累计统计）
+	lastHandshakeNano atomic.Int64   // 上次成功握手完成时间（Unix 纳秒时间戳）
 
-	endpoint struct {
-		sync.Mutex
-		val            conn.Endpoint
-		clearSrcOnTx   bool // signal to val.ClearSrc() prior to next packet transmission
-		disableRoaming bool
+	endpoint struct { // 对端网络端点（地址+端口）
+		sync.Mutex                   // 保护 val 的并发读写
+		val            conn.Endpoint // 当前有效的 UDP 端点（含 IP 和端口）
+		clearSrcOnTx   bool          // 下次发包前是否调用 ClearSrc() 清除源地址
+		disableRoaming bool          // 是否禁用端点漫游（即不响应 IP 变化）
 	}
 
-	timers struct {
-		retransmitHandshake     *Timer
-		sendKeepalive           *Timer
-		newHandshake            *Timer
-		zeroKeyMaterial         *Timer
-		persistentKeepalive     *Timer
-		handshakeAttempts       atomic.Uint32
-		needAnotherKeepalive    atomic.Bool
-		sentLastMinuteHandshake atomic.Bool
+	timers struct { // 所有定时器集合
+		retransmitHandshake     *Timer        // 握手消息重传定时器
+		sendKeepalive           *Timer        // Keepalive 发送定时器
+		newHandshake            *Timer        // 触发新握手的定时器（超时重协商）
+		zeroKeyMaterial         *Timer        // 密钥材料清零定时器（超时后丢弃密钥）
+		persistentKeepalive     *Timer        // 持久化 Keepalive 周期定时器（穿透 NAT）
+		handshakeAttempts       atomic.Uint32 // 握手尝试次数（达到上限后触发更慢的重传节奏）
+		needAnotherKeepalive    atomic.Bool   // 是否需要额外再发一次 Keepalive
+		sentLastMinuteHandshake atomic.Bool   // 最近一分钟内是否已发起过握手（避免频繁握手）
 	}
 
-	state struct {
-		sync.Mutex // protects against concurrent Start/Stop
+	state struct { // 启停状态锁
+		sync.Mutex // 防止 Start/Stop 并发执行
 	}
 
-	queue struct {
-		staged   chan *QueueOutboundElementsContainer // staged packets before a handshake is available
-		outbound *autodrainingOutboundQueue           // sequential ordering of udp transmission
-		inbound  *autodrainingInboundQueue            // sequential ordering of tun writing
+	queue struct { // 数据包队列
+		staged   chan *QueueOutboundElementsContainer // 暂存队列：握手完成前无法发送的出站包
+		outbound *autodrainingOutboundQueue           // 出站队列：按顺序交付 UDP 发送
+		inbound  *autodrainingInboundQueue            // 入站队列：按顺序交付 Tun 写入
 	}
 
-	cookieGenerator             CookieGenerator
-	trieEntries                 list.List
-	persistentKeepaliveInterval atomic.Uint32
+	cookieGenerator             CookieGenerator // Cookie 生成器（用于 DoS 防护的应答机制）
+	trieEntries                 list.List       // AllowedIPs 前缀在路由树中的节点链表（方便按 Peer 批量删除）
+	persistentKeepaliveInterval atomic.Uint32   // 持久化 Keepalive 间隔（秒），0 表示禁用
 }
 
 func (device *Device) NewPeer(pk NoisePublicKey) (*Peer, error) {
@@ -208,7 +208,7 @@ func (peer *Peer) Start() {
 	}
 
 	device := peer.device
-	device.log.Notice("%v - 正在启动", peer)
+	device.log.Debug("%v - 正在启动", peer)
 
 	// reset routine state
 	peer.stopping.Wait()
