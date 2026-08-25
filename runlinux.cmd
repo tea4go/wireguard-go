@@ -15,5 +15,5 @@ REM   runlinux.cmd                 -> default linux/amd64
 REM   runlinux.cmd -Arch arm64     -> linux/arm64
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS1_SCRIPT%" -OS linux -Arch amd64 %*
 
-scp wireguard-go root@101.133.133.127:~/
+scp wireguard root@101.133.133.127:~/
 exit /b %ERRORLEVEL%
