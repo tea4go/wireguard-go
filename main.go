@@ -102,7 +102,7 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	if mtu <= 0 {
 		mtu = device.DefaultMTU
 	}
-	logger := device.NewLogger(logs.GetLevel("file"), fmt.Sprintf("(%s) ", cfg.InterfaceName))
+	logger := device.NewLogger(logs.GetLevel("file"), cfg.InterfaceName)
 	tunDevice, err := tun.CreateTUN(cfg.InterfaceName, mtu)
 	if err != nil {
 		return nil, fmt.Errorf("创建 TUN 设备失败, %w", err)
