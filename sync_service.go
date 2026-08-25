@@ -49,6 +49,7 @@ type syncResult struct {
 	GistID      string
 	TunnelCount int
 	FileName    string
+	WebURL      string
 }
 
 type syncProvider struct {
@@ -73,6 +74,7 @@ type gistFile struct {
 
 type gistResponse struct {
 	ID          string              `json:"id"`
+	HTMLURL     string              `json:"html_url"`
 	Description string              `json:"description,omitempty"`
 	Files       map[string]gistFile `json:"files"`
 }
@@ -130,6 +132,7 @@ func (c *gistSyncClient) Upload(settings syncSettings, payload syncPayload, desc
 		GistID:      response.ID,
 		TunnelCount: len(payload.Tunnels),
 		FileName:    fileName,
+		WebURL:      firstNonEmpty(strings.TrimSpace(response.HTMLURL), buildSnippetWebURL(c.provider, response.ID)),
 	}, nil
 }
 
@@ -325,6 +328,11 @@ func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, provider
 			return err
 		}
 		logSync(stdout, "上传完成，远端 Gist: %s", result.GistID)
+		if result.WebURL != "" {
+			logSync(stdout, "上传链接: %s", result.WebURL)
+		}
+		fmt.Fprintf(stdout, "同步完成\n")
+
 		return nil
 
 	case "download":
@@ -342,7 +350,7 @@ func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, provider
 		if err := writeSyncPayloadToPath(payload, path); err != nil {
 			return err
 		}
-		fmt.Printf("同步完成\n")
+		fmt.Fprintf(stdout, "同步完成\n")
 		return nil
 	}
 
@@ -354,6 +362,30 @@ func logSync(stdout io.Writer, format string, args ...any) {
 		return
 	}
 	fmt.Fprintf(stdout, "[sync] "+format+"\n", args...)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func buildSnippetWebURL(provider syncProvider, gistID string) string {
+	id := strings.TrimSpace(gistID)
+	if id == "" {
+		return ""
+	}
+	switch provider.Name {
+	case "gitee":
+		return "https://gitee.com/codes/" + id
+	case "github":
+		return "https://gist.github.com/" + id
+	default:
+		return ""
+	}
 }
 
 func readSyncTunnels(path string) ([]syncTunnel, error) {

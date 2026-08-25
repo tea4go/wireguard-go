@@ -439,7 +439,11 @@ func TestRunSyncCommandUploadLogsLocalTunnelCount(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(gistResponse{ID: "gist-234", Files: map[string]gistFile{}})
+		_ = json.NewEncoder(w).Encode(gistResponse{
+			ID:      "gist-234",
+			HTMLURL: "https://gitee.com/tea4go/codes/6yivgwt5pjceb0duhas7949",
+			Files:   map[string]gistFile{},
+		})
 	}))
 	defer server.Close()
 
@@ -457,7 +461,9 @@ func TestRunSyncCommandUploadLogsLocalTunnelCount(t *testing.T) {
 		"[sync] 本地配置数量: 2",
 		"[sync] 开始上传到远端 Gist",
 		"[sync] 上传完成，远端 Gist: gist-234",
+		"[sync] 上传链接: https://gitee.com/tea4go/codes/6yivgwt5pjceb0duhas7949",
 		"同步完成",
+		"https://gitee.com/tea4go/codes/6yivgwt5pjceb0duhas7949",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected output to contain %q, got:\n%s", want, got)
