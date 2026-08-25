@@ -4,6 +4,44 @@ Command failures and integration errors.
 
 ---
 
+## [ERR-20260825-002] linux-interface-name
+
+**Logged**: 2026-08-25T19:44:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+
+部署验收使用了 16 字节的临时接口名，超过 Linux 接口名 15 字节上限。
+
+### Error
+
+```text
+Error: Attribute failed policy validation.
+```
+
+### Context
+
+- 创建临时 dummy 接口 `codexdeploycheck` 以触发 `NETLINK_ROUTE`。
+- 部署脚本按预期自动回滚，旧二进制和内核 WireGuard 接口均恢复。
+
+### Suggested Fix
+
+临时 Linux 接口名也必须限制为最多 15 字节。
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: .gotmp/deploy_unix_alignment.sh
+
+### Resolution
+
+- **Resolved**: 2026-08-25T19:45:00+08:00
+- **Notes**: 改用 8 字节接口名 `codexchk`。
+
+---
+
 ## [ERR-20260825-001] exec_command
 
 **Logged**: 2026-08-25T00:00:00+08:00
