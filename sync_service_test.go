@@ -408,6 +408,7 @@ func TestRunSyncCommandDownloadLogsSelectedRemoteFileAndTunnelCount(t *testing.T
 		"[sync] 开始从远端读取 Gist: gist-123",
 		"[sync] 已选择远端文件: 1.0.0(20260825-104400)[128Byte].json5",
 		"[sync] 远端配置数量: 2",
+		"[sync] 远端配置名称: office, lab",
 		"[sync] 开始写入本地目录: " + outPath,
 		"同步完成",
 	} {

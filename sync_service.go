@@ -346,6 +346,7 @@ func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, provider
 		}
 		logSync(stdout, "已选择远端文件: %s", fileName)
 		logSync(stdout, "远端配置数量: %d", len(payload.Tunnels))
+		logSync(stdout, "远端配置名称: %s", joinSyncTunnelNames(payload.Tunnels))
 		logSync(stdout, "开始写入本地目录: %s", path)
 		if err := writeSyncPayloadToPath(payload, path); err != nil {
 			return err
@@ -362,6 +363,20 @@ func logSync(stdout io.Writer, format string, args ...any) {
 		return
 	}
 	fmt.Fprintf(stdout, "[sync] "+format+"\n", args...)
+}
+
+func joinSyncTunnelNames(tunnels []syncTunnel) string {
+	if len(tunnels) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(tunnels))
+	for _, tunnel := range tunnels {
+		name := strings.TrimSpace(tunnel.Name)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 func firstNonEmpty(values ...string) string {
