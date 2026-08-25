@@ -148,9 +148,9 @@ func startConfiguredInterface(cfg *tunnelConfig) (*runningInterface, error) {
 	}
 
 	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), logger)
-	logger.Info("配置: %s", describeTunnelConfig(cfg))
+	logger.Notice("配置: %s", describeTunnelConfig(cfg))
 	for _, peer := range cfg.Peers {
-		logger.Info("= 节点: %s", describePeerConfig(peer))
+		logger.Notice("= 节点: %s", describePeerConfig(peer))
 	}
 	if cfg.UAPI != "" {
 		logs.Debug("[%s] 开始应用 WireGuard 配置", interfaceName)
