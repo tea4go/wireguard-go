@@ -2,7 +2,9 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -312,5 +314,118 @@ func TestExampleSyncConfigIsValid(t *testing.T) {
 	}
 	if got, want := cfg.Confile, "conf/wgtun1.conf"; got != want {
 		t.Fatalf("expected confile %q, got %q", want, got)
+	}
+}
+
+func TestWriteSyncPayloadToConfExplainsMultiTunnelDownload(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "download.conf")
+	payload := syncPayload{
+		Version:   1,
+		UpdatedAt: "2026-08-25T02:44:00Z",
+		Tunnels: []syncTunnel{
+			{Name: "office", Content: "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x27) + "\n"},
+			{Name: "lab", Content: "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x28) + "\n"},
+		},
+	}
+
+	err := writeSyncPayloadToPath(payload, outPath)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if got, want := err.Error(), "远端包含 2 个配置，输出到 .conf 不可行，请改用 .zip: "+outPath; got != want {
+		t.Fatalf("expected error %q, got %q", want, got)
+	}
+}
+
+func TestRunSyncCommandDownloadLogsSelectedRemoteFileAndTunnelCount(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(gistResponse{
+			ID: "gist-123",
+			Files: map[string]gistFile{
+				"1.0.0(20260825-104400)[128Byte].json5": {
+					Content: formatSyncPayloadJSON5(syncPayload{
+						Version:   1,
+						UpdatedAt: "2026-08-25T02:44:00Z",
+						Tunnels: []syncTunnel{
+							{Name: "office", Content: "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x29) + "\n"},
+						},
+					}),
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := newGistSyncClient(syncProvider{Name: "gitee", APIBase: server.URL}, server.Client())
+	var output bytes.Buffer
+	outPath := filepath.Join(t.TempDir(), "download.conf")
+
+	if err := runSyncCommandWithClient(&output, client, "gitee", "download", outPath, "token-123", "gist-123", ""); err != nil {
+		t.Fatalf("runSyncCommandWithClient: %v", err)
+	}
+
+	got := output.String()
+	for _, want := range []string{
+		"[sync] 提供方=gitee 操作=download",
+		"[sync] 开始从远端读取 Gist: gist-123",
+		"[sync] 已选择远端文件: 1.0.0(20260825-104400)[128Byte].json5",
+		"[sync] 远端配置数量: 1",
+		"[sync] 开始写入本地文件: " + outPath,
+		"同步完成",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected output to contain %q, got:\n%s", want, got)
+		}
+	}
+}
+
+func TestRunSyncCommandUploadLogsLocalTunnelCount(t *testing.T) {
+	dir := t.TempDir()
+	confPath := filepath.Join(dir, "office.conf")
+	confBody := "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x2a) + "\n"
+	if err := os.WriteFile(confPath, []byte(confBody), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(gistResponse{ID: "gist-234", Files: map[string]gistFile{}})
+	}))
+	defer server.Close()
+
+	client := newGistSyncClient(syncProvider{Name: "github", APIBase: server.URL}, server.Client())
+	var output bytes.Buffer
+
+	if err := runSyncCommandWithClient(&output, client, "github", "upload", confPath, "token-456", "", ""); err != nil {
+		t.Fatalf("runSyncCommandWithClient: %v", err)
+	}
+
+	got := output.String()
+	for _, want := range []string{
+		"[sync] 提供方=github 操作=upload",
+		"[sync] 开始读取本地配置: " + confPath,
+		"[sync] 本地配置数量: 1",
+		"[sync] 开始上传到远端 Gist",
+		"[sync] 上传完成，远端 Gist: gist-234",
+		"同步完成",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected output to contain %q, got:\n%s", want, got)
+		}
+	}
+}
+
+func TestRunSyncCommandDownloadLogsHelpfulFailure(t *testing.T) {
+	fakeClient := &gistSyncClient{provider: syncProvider{Name: "gitee"}}
+	var output bytes.Buffer
+
+	err := runSyncCommandWithClient(&output, fakeClient, "gitee", "download", "conf\\wgtun1.conf", "token", "gist-123", "")
+	if !errors.Is(err, errSyncClientMissingDoer) {
+		t.Fatalf("expected errSyncClientMissingDoer, got %v", err)
+	}
+	if got := output.String(); !strings.Contains(got, "[sync] 开始从远端读取 Gist: gist-123") {
+		t.Fatalf("expected output to contain download start log, got:\n%s", got)
 	}
 }

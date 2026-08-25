@@ -17,6 +17,8 @@ import (
 	"time"
 )
 
+var errSyncClientMissingDoer = errors.New("SYNC_HTTP_CLIENT_MISSING")
+
 type syncTunnel struct {
 	Name    string `json:"name"`
 	Content string `json:"content"`
@@ -162,6 +164,9 @@ func (c *gistSyncClient) Download(settings syncSettings, preferredFile string) (
 }
 
 func (c *gistSyncClient) doJSON(method string, url string, token string, requestBody any, responseBody any) error {
+	if c == nil || c.httpClient == nil {
+		return errSyncClientMissingDoer
+	}
 	var bodyReader io.Reader
 	if requestBody != nil {
 		data, err := json.Marshal(requestBody)
@@ -273,6 +278,20 @@ func runSyncCommand(stdout io.Writer, providerName string, action string, confil
 	}
 
 	client := newGistSyncClient(provider, nil)
+	return runSyncCommandWithClient(stdout, client, providerName, action, confile, token, gistID, remoteFile)
+}
+
+func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, providerName string, action string, confile string, token string, gistID string, remoteFile string) error {
+	logSync(stdout, "提供方=%s 操作=%s", providerName, action)
+
+	if client == nil {
+		provider, err := getSyncProvider(providerName)
+		if err != nil {
+			return err
+		}
+		client = newGistSyncClient(provider, nil)
+	}
+
 	settings := syncSettings{
 		Token:  token,
 		GistID: gistID,
@@ -283,42 +302,57 @@ func runSyncCommand(stdout io.Writer, providerName string, action string, confil
 		if strings.TrimSpace(confile) == "" {
 			return errors.New("SYNC_CONFILE_REQUIRED")
 		}
+		logSync(stdout, "开始读取本地配置: %s", confile)
 		tunnels, err := readSyncTunnels(confile)
 		if err != nil {
 			return err
 		}
+		logSync(stdout, "本地配置数量: %d", len(tunnels))
 		payload := syncPayload{
 			Version:   1,
 			UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 			Tunnels:   tunnels,
 		}
+		logSync(stdout, "开始上传到远端 Gist")
 		result, err := client.Upload(settings, payload, buildSyncDescription())
 		if err != nil {
 			return err
 		}
+		logSync(stdout, "上传完成，远端 Gist: %s", result.GistID)
 		_, err = fmt.Fprintf(stdout,
 			"同步完成\n提供方: %s\n操作: upload\nGistID: %s\n配置数量: %d\n远端文件: %s\n",
-			provider.Name, result.GistID, result.TunnelCount, result.FileName)
+			client.provider.Name, result.GistID, result.TunnelCount, result.FileName)
 		return err
 
 	case "download":
 		if strings.TrimSpace(confile) == "" {
 			return errors.New("SYNC_CONFILE_REQUIRED")
 		}
+		logSync(stdout, "开始从远端读取 Gist: %s", gistID)
 		payload, fileName, err := client.Download(settings, remoteFile)
 		if err != nil {
 			return err
 		}
+		logSync(stdout, "已选择远端文件: %s", fileName)
+		logSync(stdout, "远端配置数量: %d", len(payload.Tunnels))
+		logSync(stdout, "开始写入本地文件: %s", confile)
 		if err := writeSyncPayloadToPath(payload, confile); err != nil {
 			return err
 		}
 		_, err = fmt.Fprintf(stdout,
 			"同步完成\n提供方: %s\n操作: download\nGistID: %s\n配置数量: %d\n远端文件: %s\n输出文件: %s\n",
-			provider.Name, gistID, len(payload.Tunnels), fileName, confile)
+			client.provider.Name, gistID, len(payload.Tunnels), fileName, confile)
 		return err
 	}
 
 	return fmt.Errorf("unsupported sync action: %s", action)
+}
+
+func logSync(stdout io.Writer, format string, args ...any) {
+	if stdout == nil {
+		return
+	}
+	fmt.Fprintf(stdout, "[sync] "+format+"\n", args...)
 }
 
 func readSyncTunnels(path string) ([]syncTunnel, error) {
@@ -429,7 +463,7 @@ func writeSyncPayloadToPath(payload syncPayload, path string) error {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".conf":
 		if len(payload.Tunnels) != 1 {
-			return errors.New("MULTI_TUNNEL_REQUIRES_ZIP")
+			return fmt.Errorf("远端包含 %d 个配置，输出到 .conf 不可行，请改用 .zip: %s", len(payload.Tunnels), path)
 		}
 		return os.WriteFile(path, []byte(payload.Tunnels[0].Content), 0o644)
 

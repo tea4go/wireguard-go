@@ -9,3 +9,4 @@ conf/
 .gomodcache/
 wireguard-go.pid
 VERSION.txt
+sync.json5
