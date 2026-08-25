@@ -315,8 +315,32 @@ func main() {
 		logs.Notice("接口 %s 已启动", ri.name)
 	}
 	if len(running) == 0 {
-		logs.Error("所有接口均启动失败")
-		os.Exit(ExitSetupFailed)
+		logs.Warning("当前没有成功启动的接口，进程将保持运行并等待终止信号")
+	}
+
+	var networkMonitor hostNetworkMonitor
+	if len(running) > 0 {
+		excluded := make(map[int]string, len(running))
+		for _, ri := range running {
+			iface, err := net.InterfaceByName(ri.name)
+			if err == nil {
+				excluded[iface.Index] = ri.name
+			}
+		}
+		var monitorErr error
+		networkMonitor, monitorErr = startHostNetworkMonitor(func(changeCount int, details []string) {
+			logs.Notice("检测到本地网络变化(%d 个事件)，开始刷新 WireGuard UDP 绑定", changeCount)
+			for _, ri := range running {
+				if err := ri.device.HandleNetworkChange(); err != nil {
+					logs.Error("[%s] 网络变化恢复失败: %v", ri.name, err)
+					continue
+				}
+				logs.Notice("[%s] 网络变化恢复完成", ri.name)
+			}
+		}, excluded)
+		if monitorErr != nil {
+			logs.Error("%s 网络变化监视启动失败: %v", runtime.GOOS, monitorErr)
+		}
 	}
 
 	term := make(chan os.Signal, 1)
@@ -332,6 +356,10 @@ func main() {
 		}
 	}
 	logs.Notice("开始关闭，原因: %s", shutdownReason)
+	if networkMonitor != nil {
+		networkMonitor.Close()
+		logs.Notice("%s 网络变化监视已关闭", runtime.GOOS)
+	}
 	close(closing)
 	for _, ri := range running {
 		ri.uapi.Close()
