@@ -26,6 +26,10 @@ func startHostNetworkMonitor(onChange func(int, []string), excluded map[int]stri
 	if err != nil {
 		return nil, err
 	}
+	if err := unix.SetNonblock(fd, true); err != nil {
+		unix.Close(fd)
+		return nil, err
+	}
 
 	address := &unix.SockaddrNetlink{
 		Family: unix.AF_NETLINK,
@@ -59,12 +63,13 @@ func startHostNetworkMonitor(onChange func(int, []string), excluded map[int]stri
 }
 
 func (monitor *linuxHostNetworkMonitor) Close() {
-	monitor.closeOnce.Do(func() {
-		stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop)
-		_ = unix.Shutdown(monitor.fd, unix.SHUT_RDWR)
-		_ = unix.Close(monitor.fd)
-		<-monitor.done
-	})
+	closeUnixHostNetworkMonitor(
+		monitor.fd,
+		&monitor.closeOnce,
+		&monitor.stopOnce,
+		monitor.stop,
+		monitor.done,
+	)
 }
 
 func (monitor *linuxHostNetworkMonitor) run() {
@@ -82,9 +87,28 @@ func (monitor *linuxHostNetworkMonitor) readEvents() {
 	defer monitor.waitGroup.Done()
 	buffer := make([]byte, 64*1024)
 	for {
-		count, err := unix.Read(monitor.fd, buffer)
+		select {
+		case <-monitor.stop:
+			return
+		default:
+		}
+		ready, err := pollHostNetworkMonitor(monitor.fd)
 		if err != nil {
 			if err == unix.EINTR {
+				continue
+			}
+			if stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop) {
+				logs.Error("Linux 网络变化监视读取失败: %v", err)
+			}
+			return
+		}
+		if !ready {
+			continue
+		}
+
+		count, err := unix.Read(monitor.fd, buffer)
+		if err != nil {
+			if err == unix.EINTR || err == unix.EAGAIN || err == unix.EWOULDBLOCK {
 				continue
 			}
 			if stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop) {
