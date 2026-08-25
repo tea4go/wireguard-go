@@ -4,6 +4,44 @@ Command failures and integration errors.
 
 ---
 
+## [ERR-20260825-001] exec_command
+
+**Logged**: 2026-08-25T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+
+读取 Go 模块源码时使用了未设置的 `$env:GOPATH`，导致模块路径被错误解析到 `C:\pkg\mod`。
+
+### Error
+
+```text
+Cannot find path 'C:\pkg\mod\golang.org\x\sys@v0.32.0\unix\...'
+```
+
+### Context
+
+- 为 Linux netlink 和 macOS route socket 解析器核对 `x/sys/unix` 常量及结构布局。
+- `go env GOMODCACHE` 实际返回 `C:\Users\Admin\go\pkg\mod`。
+
+### Suggested Fix
+
+构造 Go 模块源码路径时使用 `go env GOMODCACHE` 的绝对结果，不依赖当前 PowerShell 是否导出了 `$env:GOPATH`。
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: go.mod
+
+### Resolution
+
+- **Resolved**: 2026-08-25T00:00:00+08:00
+- **Notes**: 改用 `C:\Users\Admin\go\pkg\mod` 后成功读取目标常量和结构定义。
+
+---
+
 ## [ERR-20260823-006] inspect-build-artifact
 
 **Logged**: 2026-08-23T15:50:00+08:00
