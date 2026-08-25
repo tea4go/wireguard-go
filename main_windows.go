@@ -90,8 +90,8 @@ func printFullUsage() {
 	fmt.Printf("  %s --confile conf                             # 加载目录下全部 .conf 配置\n", exeName)
 	fmt.Printf("  $env:confile='conf\\wgtun1.conf'; %s           # 通过环境变量指定配置\n", exeName)
 	fmt.Printf("  %s                                            # 默认加载程序目录下 conf\\*.conf\n", exeName)
-	fmt.Printf("  %s --sync-provider github --sync-action upload --sync-token <token> -c conf\\wgtun1.conf\n", exeName)
-	fmt.Printf("  %s --sync-provider gitee --sync-action download --sync-token <token> --sync-gist-id <id> -c conf\\sync.zip\n", exeName)
+	fmt.Printf("  %s --sync-provider github --sync-action upload --sync-token <token> -c conf\n", exeName)
+	fmt.Printf("  %s --sync-provider gitee --sync-action download --sync-token <token> --sync-gist-id <id> -c conf\n", exeName)
 	fmt.Printf("  %s --sync .\\example.json5\n", exeName)
 	fmt.Printf("  %s -S                                         # 查看守护状态\n", exeName)
 	fmt.Printf("  %s -q                                         # 停止守护\n\n", exeName)
@@ -277,7 +277,7 @@ func main() {
 			os.Exit(ExitSetupFailed)
 		}
 		cfg = applySyncConfigOverrides(cfg, *psyncProvider, *psyncAction, *psyncToken, *psyncGistID, syncConfile, *psyncFile)
-		if err := runSyncCommand(os.Stdout, cfg.Provider, cfg.Action, cfg.Confile, cfg.Token, cfg.GistID, cfg.RemoteFile); err != nil {
+		if err := runSyncCommand(os.Stdout, cfg.Provider, cfg.Action, cfg.Path, cfg.Token, cfg.GistID, cfg.RemoteFile); err != nil {
 			fmt.Fprintf(os.Stderr, "配置同步失败: %v\n", err)
 			os.Exit(ExitSetupFailed)
 		}

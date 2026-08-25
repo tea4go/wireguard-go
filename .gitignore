@@ -10,3 +10,5 @@ conf/
 wireguard-go.pid
 VERSION.txt
 sync.json5
+sync_down.json5
+sync_upload.json5

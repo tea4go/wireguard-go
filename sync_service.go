@@ -40,6 +40,7 @@ type syncConfigFile struct {
 	Action     string `json:"action"`
 	Token      string `json:"token"`
 	GistID     string `json:"gistId"`
+	Path       string `json:"path"`
 	Confile    string `json:"confile"`
 	RemoteFile string `json:"remoteFile"`
 }
@@ -238,7 +239,7 @@ func loadSyncConfig(path string) (syncConfigFile, error) {
 	return normalizeSyncConfig(cfg), nil
 }
 
-func applySyncConfigOverrides(base syncConfigFile, provider string, action string, token string, gistID string, confile string, remoteFile string) syncConfigFile {
+func applySyncConfigOverrides(base syncConfigFile, provider string, action string, token string, gistID string, path string, remoteFile string) syncConfigFile {
 	merged := normalizeSyncConfig(base)
 	if value := strings.TrimSpace(provider); value != "" {
 		merged.Provider = value
@@ -252,8 +253,8 @@ func applySyncConfigOverrides(base syncConfigFile, provider string, action strin
 	if value := strings.TrimSpace(gistID); value != "" {
 		merged.GistID = value
 	}
-	if value := strings.TrimSpace(confile); value != "" {
-		merged.Confile = value
+	if value := strings.TrimSpace(path); value != "" {
+		merged.Path = value
 	}
 	if value := strings.TrimSpace(remoteFile); value != "" {
 		merged.RemoteFile = value
@@ -266,22 +267,27 @@ func normalizeSyncConfig(cfg syncConfigFile) syncConfigFile {
 	cfg.Action = strings.TrimSpace(cfg.Action)
 	cfg.Token = strings.TrimSpace(cfg.Token)
 	cfg.GistID = strings.TrimSpace(cfg.GistID)
+	cfg.Path = strings.TrimSpace(cfg.Path)
 	cfg.Confile = strings.TrimSpace(cfg.Confile)
 	cfg.RemoteFile = strings.TrimSpace(cfg.RemoteFile)
+	if cfg.Path == "" && cfg.Confile != "" {
+		cfg.Path = cfg.Confile
+	}
+	cfg.Confile = ""
 	return cfg
 }
 
-func runSyncCommand(stdout io.Writer, providerName string, action string, confile string, token string, gistID string, remoteFile string) error {
+func runSyncCommand(stdout io.Writer, providerName string, action string, path string, token string, gistID string, remoteFile string) error {
 	provider, err := getSyncProvider(providerName)
 	if err != nil {
 		return err
 	}
 
 	client := newGistSyncClient(provider, nil)
-	return runSyncCommandWithClient(stdout, client, providerName, action, confile, token, gistID, remoteFile)
+	return runSyncCommandWithClient(stdout, client, providerName, action, path, token, gistID, remoteFile)
 }
 
-func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, providerName string, action string, confile string, token string, gistID string, remoteFile string) error {
+func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, providerName string, action string, path string, token string, gistID string, remoteFile string) error {
 	logSync(stdout, "提供方=%s 操作=%s", providerName, action)
 
 	if client == nil {
@@ -299,11 +305,11 @@ func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, provider
 
 	switch strings.ToLower(strings.TrimSpace(action)) {
 	case "upload":
-		if strings.TrimSpace(confile) == "" {
-			return errors.New("SYNC_CONFILE_REQUIRED")
+		if strings.TrimSpace(path) == "" {
+			return errors.New("SYNC_PATH_REQUIRED")
 		}
-		logSync(stdout, "开始读取本地配置: %s", confile)
-		tunnels, err := readSyncTunnels(confile)
+		logSync(stdout, "开始读取本地目录: %s", path)
+		tunnels, err := readSyncTunnels(path)
 		if err != nil {
 			return err
 		}
@@ -319,14 +325,11 @@ func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, provider
 			return err
 		}
 		logSync(stdout, "上传完成，远端 Gist: %s", result.GistID)
-		_, err = fmt.Fprintf(stdout,
-			"同步完成\n提供方: %s\n操作: upload\nGistID: %s\n配置数量: %d\n远端文件: %s\n",
-			client.provider.Name, result.GistID, result.TunnelCount, result.FileName)
-		return err
+		return nil
 
 	case "download":
-		if strings.TrimSpace(confile) == "" {
-			return errors.New("SYNC_CONFILE_REQUIRED")
+		if strings.TrimSpace(path) == "" {
+			return errors.New("SYNC_PATH_REQUIRED")
 		}
 		logSync(stdout, "开始从远端读取 Gist: %s", gistID)
 		payload, fileName, err := client.Download(settings, remoteFile)
@@ -335,14 +338,12 @@ func runSyncCommandWithClient(stdout io.Writer, client *gistSyncClient, provider
 		}
 		logSync(stdout, "已选择远端文件: %s", fileName)
 		logSync(stdout, "远端配置数量: %d", len(payload.Tunnels))
-		logSync(stdout, "开始写入本地文件: %s", confile)
-		if err := writeSyncPayloadToPath(payload, confile); err != nil {
+		logSync(stdout, "开始写入本地目录: %s", path)
+		if err := writeSyncPayloadToPath(payload, path); err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(stdout,
-			"同步完成\n提供方: %s\n操作: download\nGistID: %s\n配置数量: %d\n远端文件: %s\n输出文件: %s\n",
-			client.provider.Name, gistID, len(payload.Tunnels), fileName, confile)
-		return err
+		fmt.Printf("同步完成\n")
+		return nil
 	}
 
 	return fmt.Errorf("unsupported sync action: %s", action)
@@ -356,6 +357,38 @@ func logSync(stdout io.Writer, format string, args ...any) {
 }
 
 func readSyncTunnels(path string) ([]syncTunnel, error) {
+	if stat, err := os.Stat(path); err == nil && stat.IsDir() {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return nil, err
+		}
+		tunnels := make([]syncTunnel, 0, len(entries))
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".conf") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(path, entry.Name()))
+			if err != nil {
+				return nil, err
+			}
+			tunnel := syncTunnel{
+				Name:    interfaceNameFromPath(entry.Name()),
+				Content: string(data),
+			}
+			if err := validateSyncTunnel(tunnel); err != nil {
+				return nil, err
+			}
+			tunnels = append(tunnels, tunnel)
+		}
+		sort.Slice(tunnels, func(i, j int) bool {
+			return strings.ToLower(tunnels[i].Name) < strings.ToLower(tunnels[j].Name)
+		})
+		if len(tunnels) == 0 {
+			return nil, fmt.Errorf("目录中未找到 .conf 配置文件: %s", path)
+		}
+		return tunnels, nil
+	}
+
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".conf":
 		data, err := os.ReadFile(path)
@@ -460,6 +493,22 @@ func writeSyncPayloadToPath(payload syncPayload, path string) error {
 		return err
 	}
 
+	if filepath.Ext(path) == "" {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			return err
+		}
+		tunnels := append([]syncTunnel(nil), payload.Tunnels...)
+		sort.Slice(tunnels, func(i, j int) bool {
+			return strings.ToLower(tunnels[i].Name) < strings.ToLower(tunnels[j].Name)
+		})
+		for _, tunnel := range tunnels {
+			if err := os.WriteFile(filepath.Join(path, tunnel.Name+".conf"), []byte(tunnel.Content), 0o644); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".conf":
 		if len(payload.Tunnels) != 1 {
@@ -493,7 +542,7 @@ func writeSyncPayloadToPath(payload syncPayload, path string) error {
 		return writer.Close()
 	}
 
-	return fmt.Errorf("下载输出文件必须是 .conf 或 .zip: %s", path)
+	return fmt.Errorf("下载输出路径必须是目录、.conf 或 .zip: %s", path)
 }
 
 func buildBackupFileName(backupTime time.Time, fileSize int) string {

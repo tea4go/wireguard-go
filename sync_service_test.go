@@ -74,6 +74,33 @@ func TestReadSyncTunnelsFromConfAndZip(t *testing.T) {
 	}
 }
 
+func TestReadSyncTunnelsFromDirectory(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"b.conf":    "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x2d) + "\n",
+		"a.conf":    "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x2e) + "\n",
+		"notes.txt": "ignore",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("WriteFile(%q): %v", name, err)
+		}
+	}
+
+	tunnels, err := readSyncTunnels(dir)
+	if err != nil {
+		t.Fatalf("readSyncTunnels(dir): %v", err)
+	}
+
+	want := []syncTunnel{
+		{Name: "a", Content: files["a.conf"]},
+		{Name: "b", Content: files["b.conf"]},
+	}
+	if !reflect.DeepEqual(tunnels, want) {
+		t.Fatalf("unexpected directory tunnels:\nwant: %#v\ngot:  %#v", want, tunnels)
+	}
+}
+
 func TestFormatAndParseSyncPayloadJSON5(t *testing.T) {
 	payload := syncPayload{
 		Version:   1,
@@ -253,7 +280,7 @@ func TestLoadSyncConfigSupportsJSON5(t *testing.T) {
 		"  action: 'upload',",
 		"  token: 'ghp_example',",
 		"  gistId: 'gist-123',",
-		"  confile: 'conf/wgtun1.conf',",
+		"  path: 'conf',",
 		"  remoteFile: '1.0.0(20260824-112233)[256Byte].json5',",
 		"}",
 		"",
@@ -272,7 +299,7 @@ func TestLoadSyncConfigSupportsJSON5(t *testing.T) {
 		Action:     "upload",
 		Token:      "ghp_example",
 		GistID:     "gist-123",
-		Confile:    "conf/wgtun1.conf",
+		Path:       "conf",
 		RemoteFile: "1.0.0(20260824-112233)[256Byte].json5",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -286,17 +313,17 @@ func TestApplySyncConfigOverridesOnlyMissingCLIValues(t *testing.T) {
 		Action:     "download",
 		Token:      "base-token",
 		GistID:     "base-gist",
-		Confile:    "conf/base.zip",
+		Path:       "conf/base",
 		RemoteFile: "base.json5",
 	}
 
-	merged := applySyncConfigOverrides(base, "github", "", "", "", "conf/override.zip", "")
+	merged := applySyncConfigOverrides(base, "github", "", "", "", "conf/override", "")
 	want := syncConfigFile{
 		Provider:   "github",
 		Action:     "download",
 		Token:      "base-token",
 		GistID:     "base-gist",
-		Confile:    "conf/override.zip",
+		Path:       "conf/override",
 		RemoteFile: "base.json5",
 	}
 	if !reflect.DeepEqual(merged, want) {
@@ -312,14 +339,14 @@ func TestExampleSyncConfigIsValid(t *testing.T) {
 	if got, want := cfg.Provider, "github"; got != want {
 		t.Fatalf("expected provider %q, got %q", want, got)
 	}
-	if got, want := cfg.Confile, "conf/wgtun1.conf"; got != want {
-		t.Fatalf("expected confile %q, got %q", want, got)
+	if got, want := cfg.Path, "conf"; got != want {
+		t.Fatalf("expected path %q, got %q", want, got)
 	}
 }
 
-func TestWriteSyncPayloadToConfExplainsMultiTunnelDownload(t *testing.T) {
+func TestWriteSyncPayloadToDirectoryCreatesConfFiles(t *testing.T) {
 	dir := t.TempDir()
-	outPath := filepath.Join(dir, "download.conf")
+	outPath := filepath.Join(dir, "downloaded")
 	payload := syncPayload{
 		Version:   1,
 		UpdatedAt: "2026-08-25T02:44:00Z",
@@ -329,12 +356,20 @@ func TestWriteSyncPayloadToConfExplainsMultiTunnelDownload(t *testing.T) {
 		},
 	}
 
-	err := writeSyncPayloadToPath(payload, outPath)
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	if err := writeSyncPayloadToPath(payload, outPath); err != nil {
+		t.Fatalf("writeSyncPayloadToPath: %v", err)
 	}
-	if got, want := err.Error(), "远端包含 2 个配置，输出到 .conf 不可行，请改用 .zip: "+outPath; got != want {
-		t.Fatalf("expected error %q, got %q", want, got)
+	for name, want := range map[string]string{
+		"office.conf": payload.Tunnels[0].Content,
+		"lab.conf":    payload.Tunnels[1].Content,
+	} {
+		data, err := os.ReadFile(filepath.Join(outPath, name))
+		if err != nil {
+			t.Fatalf("ReadFile(%q): %v", name, err)
+		}
+		if got := string(data); got != want {
+			t.Fatalf("expected file %q content %q, got %q", name, want, got)
+		}
 	}
 }
 
@@ -350,6 +385,7 @@ func TestRunSyncCommandDownloadLogsSelectedRemoteFileAndTunnelCount(t *testing.T
 						UpdatedAt: "2026-08-25T02:44:00Z",
 						Tunnels: []syncTunnel{
 							{Name: "office", Content: "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x29) + "\n"},
+							{Name: "lab", Content: "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x2b) + "\n"},
 						},
 					}),
 				},
@@ -360,7 +396,7 @@ func TestRunSyncCommandDownloadLogsSelectedRemoteFileAndTunnelCount(t *testing.T
 
 	client := newGistSyncClient(syncProvider{Name: "gitee", APIBase: server.URL}, server.Client())
 	var output bytes.Buffer
-	outPath := filepath.Join(t.TempDir(), "download.conf")
+	outPath := filepath.Join(t.TempDir(), "download")
 
 	if err := runSyncCommandWithClient(&output, client, "gitee", "download", outPath, "token-123", "gist-123", ""); err != nil {
 		t.Fatalf("runSyncCommandWithClient: %v", err)
@@ -371,22 +407,34 @@ func TestRunSyncCommandDownloadLogsSelectedRemoteFileAndTunnelCount(t *testing.T
 		"[sync] 提供方=gitee 操作=download",
 		"[sync] 开始从远端读取 Gist: gist-123",
 		"[sync] 已选择远端文件: 1.0.0(20260825-104400)[128Byte].json5",
-		"[sync] 远端配置数量: 1",
-		"[sync] 开始写入本地文件: " + outPath,
+		"[sync] 远端配置数量: 2",
+		"[sync] 开始写入本地目录: " + outPath,
 		"同步完成",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected output to contain %q, got:\n%s", want, got)
 		}
 	}
+	for _, name := range []string{"office.conf", "lab.conf"} {
+		if _, err := os.Stat(filepath.Join(outPath, name)); err != nil {
+			t.Fatalf("expected downloaded file %q: %v", name, err)
+		}
+	}
 }
 
 func TestRunSyncCommandUploadLogsLocalTunnelCount(t *testing.T) {
 	dir := t.TempDir()
-	confPath := filepath.Join(dir, "office.conf")
-	confBody := "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x2a) + "\n"
-	if err := os.WriteFile(confPath, []byte(confBody), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
+	confDir := filepath.Join(dir, "conf")
+	if err := os.MkdirAll(confDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	for name, body := range map[string]string{
+		"office.conf": "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x2a) + "\n",
+		"lab.conf":    "[Interface]\nPrivateKey = " + repeatedKeyBase64(0x2c) + "\n",
+	} {
+		if err := os.WriteFile(filepath.Join(confDir, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("WriteFile(%q): %v", name, err)
+		}
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -398,15 +446,15 @@ func TestRunSyncCommandUploadLogsLocalTunnelCount(t *testing.T) {
 	client := newGistSyncClient(syncProvider{Name: "github", APIBase: server.URL}, server.Client())
 	var output bytes.Buffer
 
-	if err := runSyncCommandWithClient(&output, client, "github", "upload", confPath, "token-456", "", ""); err != nil {
+	if err := runSyncCommandWithClient(&output, client, "github", "upload", confDir, "token-456", "", ""); err != nil {
 		t.Fatalf("runSyncCommandWithClient: %v", err)
 	}
 
 	got := output.String()
 	for _, want := range []string{
 		"[sync] 提供方=github 操作=upload",
-		"[sync] 开始读取本地配置: " + confPath,
-		"[sync] 本地配置数量: 1",
+		"[sync] 开始读取本地目录: " + confDir,
+		"[sync] 本地配置数量: 2",
 		"[sync] 开始上传到远端 Gist",
 		"[sync] 上传完成，远端 Gist: gist-234",
 		"同步完成",
@@ -417,11 +465,35 @@ func TestRunSyncCommandUploadLogsLocalTunnelCount(t *testing.T) {
 	}
 }
 
+func TestLoadSyncConfigAcceptsLegacyConfileAsPath(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "sync.json5")
+	content := strings.Join([]string{
+		"{",
+		"  provider: 'gitee',",
+		"  action: 'download',",
+		"  confile: 'conf',",
+		"}",
+		"",
+	}, "\n")
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, err := loadSyncConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("loadSyncConfig: %v", err)
+	}
+	if got, want := cfg.Path, "conf"; got != want {
+		t.Fatalf("expected path %q, got %q", want, got)
+	}
+}
+
 func TestRunSyncCommandDownloadLogsHelpfulFailure(t *testing.T) {
 	fakeClient := &gistSyncClient{provider: syncProvider{Name: "gitee"}}
 	var output bytes.Buffer
 
-	err := runSyncCommandWithClient(&output, fakeClient, "gitee", "download", "conf\\wgtun1.conf", "token", "gist-123", "")
+	err := runSyncCommandWithClient(&output, fakeClient, "gitee", "download", "conf", "token", "gist-123", "")
 	if !errors.Is(err, errSyncClientMissingDoer) {
 		t.Fatalf("expected errSyncClientMissingDoer, got %v", err)
 	}

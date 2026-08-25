@@ -11,10 +11,10 @@
   // upload 首次可留空；download 通常必填
   gistId: '',
 
-  // 本地输入或输出文件：
-  // upload 时读取本地 .conf / .zip
-  // download 时写回本地 .conf / .zip
-  confile: 'conf/wgtun1.conf',
+  // 本地目录：
+  // upload 时读取目录下全部 .conf
+  // download 时把远端配置分别写回这个目录
+  path: 'conf',
 
   // download 时可指定远端某个备份文件；留空表示自动选择最新版本
   remoteFile: '',
