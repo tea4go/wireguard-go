@@ -133,7 +133,7 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.log.Debug("%v - 正在发送握手发起消息", peer)
+	//peer.device.log.Debug("%v - 正在发送握手发起消息", peer)
 
 	// 构造 Initiation 消息载荷（含 Ephemeral、Static、Timestamp、MAC1/MAC2 等字段）
 	msg, err := peer.device.CreateMessageInitiation(peer)
