@@ -29,11 +29,11 @@ switch ($OS) {
     }
     'linux' {
         $TargetGOOS = 'linux'
-        $OUT_BIN_NAME = 'wireguard-go'
+        $OUT_BIN_NAME = 'wireguard'
     }
     'macos' {
         $TargetGOOS = 'darwin'
-        $OUT_BIN_NAME = 'wireguard-go'
+        $OUT_BIN_NAME = 'wireguard'
     }
 }
 

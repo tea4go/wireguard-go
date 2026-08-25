@@ -9,5 +9,9 @@ if not exist "%PS1_SCRIPT%" (
     exit /b 1
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS1_SCRIPT%" %*
+REM Thin wrapper: delegate Linux cross-build to buildapp.ps1, forcing -OS linux.
+REM Usage:
+REM   runlinux.cmd                 -> default linux/amd64
+REM   runlinux.cmd -Arch arm64     -> linux/arm64
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS1_SCRIPT%" -OS linux %*
 exit /b %ERRORLEVEL%
