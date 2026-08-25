@@ -46,32 +46,49 @@ func getPidFilePath() string {
 }
 
 func getDefaultConfilePath() string {
+	exeDir := ""
 	if runtime.GOOS == "windows" {
 		exePath, err := os.Executable()
 		if err == nil {
-			exeDir := filepath.Dir(exePath)
+			exeDir = filepath.Dir(exePath)
+		}
+	}
+	return defaultConfilePathFor(runtime.GOOS, runtime.GOARCH, exeDir, pathExists)
+}
+
+func defaultConfilePathFor(goos, goarch, exeDir string, pathExists func(string) bool) string {
+	switch goos {
+	case "windows":
+		if exeDir != "" {
 			return filepath.Join(exeDir, defaultConfileSubdirWindows)
 		}
 		return defaultConfileSubdirWindows
-	}
-	if runtime.GOOS == "darwin" {
+	case "darwin":
 		confileDir := defaultConfileDirDarwinAppleSilicon
-		if runtime.GOARCH == "amd64" {
+		if goarch == "amd64" {
 			confileDir = defaultConfileDirDarwinIntel
 		}
-		if _, err := os.Stat(filepath.Join(confileDir, defaultConfileName)); err == nil {
+		if pathExists(filepath.Join(confileDir, defaultConfileName)) {
 			return filepath.Join(confileDir, defaultConfileName)
 		}
 		altDir := defaultConfileDirDarwinIntel
-		if runtime.GOARCH == "amd64" {
+		if goarch == "amd64" {
 			altDir = defaultConfileDirDarwinAppleSilicon
 		}
-		if _, err := os.Stat(filepath.Join(altDir, defaultConfileName)); err == nil {
+		if pathExists(filepath.Join(altDir, defaultConfileName)) {
 			return filepath.Join(altDir, defaultConfileName)
 		}
 		return filepath.Join(confileDir, defaultConfileName)
+	case "linux":
+		return defaultConfileDirLinux
+	default:
+		return filepath.Join(defaultConfileDirLinux, defaultConfileName)
 	}
-	return filepath.Join(defaultConfileDirLinux, defaultConfileName)
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func FormatDuration(d time.Duration) string {

@@ -7,13 +7,21 @@ import (
 	"testing"
 )
 
+func TestDefaultConfilePathForLinuxUsesWireGuardDirectory(t *testing.T) {
+	got := defaultConfilePathFor("linux", "amd64", `C:\ignored`, func(string) bool { return false })
+	want := defaultConfileDirLinux
+	if got != want {
+		t.Fatalf("expected default confile path %q, got %q", want, got)
+	}
+}
+
 func TestGetDefaultConfilePathOnLinuxUsesWireGuardDirectory(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("linux only")
 	}
 
 	got := getDefaultConfilePath()
-	want := filepath.Join(defaultConfileDirLinux, defaultConfileName)
+	want := defaultConfileDirLinux
 	if got != want {
 		t.Fatalf("expected default confile path %q, got %q", want, got)
 	}
