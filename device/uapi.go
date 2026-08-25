@@ -476,7 +476,7 @@ func (device *Device) handlePeerLine(peer *ipcSetPeer, key, value string) error 
 			verb = "移除"
 			value = value[1:]
 		}
-		device.log.Info("%v - UAPI：正在%s allowed_ip", peer.Peer, verb)
+		device.log.Debug("%v - UAPI：正在%s allowed_ip", peer.Peer, verb)
 		prefix, err := netip.ParsePrefix(value)
 		if err != nil {
 			return ipcErrorf(ipc.IpcErrorInvalid, "failed to set allowed ip, %w", err)
