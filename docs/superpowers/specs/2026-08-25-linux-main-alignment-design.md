@@ -24,9 +24,9 @@
 - 不支持 `WG_TUN_FD`、`WG_UAPI_FD` 和 `WG_PROCESS_FOREGROUND`。
 - 不处理 `DNS`、`Table`、`PreUp`、`PostUp`、`PreDown`、`PostDown`、`SaveConfig`。
 - 不根据 `AllowedIPs` 添加系统路由。
-- 不移植 Wintun 检查、Windows LUID、Windows token 权限、IPv6 绑定关闭或 Windows 网络变化监视。
+- 不移植 Wintun 检查、Windows LUID、Windows token 权限或 IPv6 绑定关闭。
+- Linux/macOS 网络变化恢复由独立规格 `2026-08-25-unix-network-recovery-design.md` 定义，不在本规格中展开。
 - 不重构 `main_windows.go`，不改变 Windows 行为。
-- 不引入 netlink 依赖。
 
 ## 入口流程
 
