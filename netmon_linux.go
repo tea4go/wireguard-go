@@ -5,6 +5,7 @@ package main
 import (
 	"sync"
 
+	logs "github.com/tea4go/gh/log4go"
 	"golang.org/x/sys/unix"
 )
 
@@ -59,9 +60,7 @@ func startHostNetworkMonitor(onChange func(int, []string), excluded map[int]stri
 
 func (monitor *linuxHostNetworkMonitor) Close() {
 	monitor.closeOnce.Do(func() {
-		monitor.stopOnce.Do(func() {
-			close(monitor.stop)
-		})
+		stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop)
 		_ = unix.Shutdown(monitor.fd, unix.SHUT_RDWR)
 		_ = unix.Close(monitor.fd)
 		<-monitor.done
@@ -88,15 +87,13 @@ func (monitor *linuxHostNetworkMonitor) readEvents() {
 			if err == unix.EINTR {
 				continue
 			}
-			monitor.stopOnce.Do(func() {
-				close(monitor.stop)
-			})
+			if stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop) {
+				logs.Error("Linux 网络变化监视读取失败: %v", err)
+			}
 			return
 		}
 		if count == 0 {
-			monitor.stopOnce.Do(func() {
-				close(monitor.stop)
-			})
+			stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop)
 			return
 		}
 		for _, event := range parseLinuxNetlinkEvents(buffer[:count]) {

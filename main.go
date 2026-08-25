@@ -338,8 +338,11 @@ func main() {
 				logs.Notice("[%s] 网络变化恢复完成", ri.name)
 			}
 		}, excluded)
-		if monitorErr != nil {
-			logs.Error("%s 网络变化监视启动失败: %v", runtime.GOOS, monitorErr)
+		monitorStatus, isError := hostNetworkMonitorStartStatus(runtime.GOOS, networkMonitor, monitorErr)
+		if isError {
+			logs.Error("%s", monitorStatus)
+		} else {
+			logs.Notice("%s", monitorStatus)
 		}
 	}
 

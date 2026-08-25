@@ -1,6 +1,10 @@
 package main
 
-import "time"
+import (
+	"fmt"
+	"sync"
+	"time"
+)
 
 const hostNetworkChangeDebounce = 8 * time.Second
 
@@ -20,6 +24,25 @@ type hostNetworkEvent struct {
 
 type hostNetworkMonitor interface {
 	Close()
+}
+
+func stopHostNetworkMonitor(stopOnce *sync.Once, stop chan struct{}) bool {
+	stopped := false
+	stopOnce.Do(func() {
+		close(stop)
+		stopped = true
+	})
+	return stopped
+}
+
+func hostNetworkMonitorStartStatus(goos string, monitor hostNetworkMonitor, err error) (string, bool) {
+	if err != nil {
+		return fmt.Sprintf("%s 网络变化监视启动失败: %v", goos, err), true
+	}
+	if monitor == nil {
+		return fmt.Sprintf("%s 不支持网络变化监视，继续运行", goos), false
+	}
+	return fmt.Sprintf("%s 网络变化监视已启动", goos), false
 }
 
 func (event hostNetworkEvent) actionable(excluded map[int]string) bool {

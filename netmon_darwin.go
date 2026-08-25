@@ -5,6 +5,7 @@ package main
 import (
 	"sync"
 
+	logs "github.com/tea4go/gh/log4go"
 	"golang.org/x/sys/unix"
 )
 
@@ -25,6 +26,7 @@ func startHostNetworkMonitor(onChange func(int, []string), excluded map[int]stri
 	if err != nil {
 		return nil, err
 	}
+	// x/sys/unix does not expose SOCK_CLOEXEC on Darwin.
 	unix.CloseOnExec(fd)
 
 	monitor := &darwinHostNetworkMonitor{
@@ -47,9 +49,7 @@ func startHostNetworkMonitor(onChange func(int, []string), excluded map[int]stri
 
 func (monitor *darwinHostNetworkMonitor) Close() {
 	monitor.closeOnce.Do(func() {
-		monitor.stopOnce.Do(func() {
-			close(monitor.stop)
-		})
+		stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop)
 		_ = unix.Shutdown(monitor.fd, unix.SHUT_RDWR)
 		_ = unix.Close(monitor.fd)
 		<-monitor.done
@@ -76,15 +76,13 @@ func (monitor *darwinHostNetworkMonitor) readEvents() {
 			if err == unix.EINTR {
 				continue
 			}
-			monitor.stopOnce.Do(func() {
-				close(monitor.stop)
-			})
+			if stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop) {
+				logs.Error("macOS 网络变化监视读取失败: %v", err)
+			}
 			return
 		}
 		if count == 0 {
-			monitor.stopOnce.Do(func() {
-				close(monitor.stop)
-			})
+			stopHostNetworkMonitor(&monitor.stopOnce, monitor.stop)
 			return
 		}
 		for _, event := range parseDarwinRouteEvents(buffer[:count]) {

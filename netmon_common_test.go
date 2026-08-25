@@ -1,10 +1,73 @@
 package main
 
 import (
+	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+type testHostNetworkMonitor struct{}
+
+func (testHostNetworkMonitor) Close() {}
+
+func TestStopHostNetworkMonitorReportsFirstStopOnly(t *testing.T) {
+	stop := make(chan struct{})
+	var stopOnce sync.Once
+	if !stopHostNetworkMonitor(&stopOnce, stop) {
+		t.Fatal("expected first stop request to report ownership")
+	}
+	select {
+	case <-stop:
+	default:
+		t.Fatal("expected first stop request to close stop channel")
+	}
+	if stopHostNetworkMonitor(&stopOnce, stop) {
+		t.Fatal("expected later stop request to report existing stop")
+	}
+}
+
+func TestHostNetworkMonitorStartStatus(t *testing.T) {
+	startErr := errors.New("socket failed")
+	for _, test := range []struct {
+		name        string
+		goos        string
+		monitor     hostNetworkMonitor
+		err         error
+		wantMessage string
+		wantError   bool
+	}{
+		{
+			name:        "started",
+			goos:        "linux",
+			monitor:     testHostNetworkMonitor{},
+			wantMessage: "linux 网络变化监视已启动",
+		},
+		{
+			name:        "unsupported",
+			goos:        "freebsd",
+			wantMessage: "freebsd 不支持网络变化监视，继续运行",
+		},
+		{
+			name:        "failed",
+			goos:        "darwin",
+			err:         startErr,
+			wantMessage: "darwin 网络变化监视启动失败: socket failed",
+			wantError:   true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			message, isError := hostNetworkMonitorStartStatus(test.goos, test.monitor, test.err)
+			if message != test.wantMessage {
+				t.Fatalf("expected message %q, got %q", test.wantMessage, message)
+			}
+			if isError != test.wantError {
+				t.Fatalf("expected error status %t, got %t", test.wantError, isError)
+			}
+		})
+	}
+}
 
 func TestRunHostNetworkChangeLoopCoalescesBurst(t *testing.T) {
 	events := make(chan hostNetworkEvent, 4)
