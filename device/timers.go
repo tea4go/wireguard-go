@@ -113,7 +113,7 @@ func expiredRetransmitHandshake(peer *Peer) {
 	} else {
 		// 未超过重试次数，继续重试握手
 		peer.timers.handshakeAttempts.Add(1)
-		peer.device.log.Debug("%s - 经过 %d 秒后握手仍未完成，正在重试（第 %d 次尝试）", peer, int(RekeyTimeout.Seconds()), peer.timers.handshakeAttempts.Load()+1)
+		//peer.device.log.Debug("%s - 经过 %d 秒后握手仍未完成，正在重试（第 %d 次尝试）", peer, int(RekeyTimeout.Seconds()), peer.timers.handshakeAttempts.Load()+1)
 
 		/* 清除端点源地址，以防该地址是导致握手失败的原因。 */
 		peer.markEndpointSrcForClearing()

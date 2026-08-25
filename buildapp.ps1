@@ -56,7 +56,7 @@ if (-not (Test-Path $env:GOTMPDIR)) { New-Item -ItemType Directory -Path $env:GO
 if ([string]::IsNullOrWhiteSpace($env:IS_BETA))     { $env:IS_BETA     = 'false' }
 if ([string]::IsNullOrWhiteSpace($env:log_level))   { $env:log_level   = '7' }
 if ($OS -eq 'windows' -and [string]::IsNullOrWhiteSpace($env:RUN_CONFIG)) {
-    $env:RUN_CONFIG  = Join-Path $SCRIPT_DIR 'conf\wgtun1.conf'
+    $env:RUN_CONFIG  = Join-Path $SCRIPT_DIR 'conf\wgtun0.conf'
 }
 
 $VERSION_FILE = Join-Path $SCRIPT_DIR 'VERSION.txt'
