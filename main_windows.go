@@ -337,11 +337,7 @@ func main() {
 		return
 	}
 
-	logs.Notice("当前启动参数")
-	logs.Info("= Foreground ....... %v", *pforeground)
-	logs.Info("= Daemon ........... %v", *pdaemon)
-	logs.Info("= Confile .......... %s", confile)
-	logs.Info("= LogLevel ......... %d", logs.GetLevel("file"))
+	logStartupParameters(*pforeground, *pdaemon, confile)
 	if !*pforeground && !*pdaemon {
 		logs.Notice("准备启动守护进程 ......")
 		daemonMgr := NewDaemonManager()
@@ -364,14 +360,7 @@ func main() {
 		return
 	}
 
-	logs.Notice("========================================")
-	logs.Notice("%s %s 启动", appName, appVer)
-	if *pdaemon {
-		logs.Notice("运行模式: 守护进程子进程")
-	} else {
-		logs.Notice("运行模式: 前台")
-	}
-	logs.Notice("========================================")
+	logStartupBanner(*pforeground, *pdaemon)
 
 	if *pdaemon {
 		daemonMgr := NewDaemonManager()

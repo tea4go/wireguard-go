@@ -238,6 +238,7 @@ func main() {
 		}
 		return
 	}
+	logStartupParameters(*pforeground, *pdaemon, confile)
 	if flag.NArg() != 0 {
 		printUsage()
 		fmt.Fprintln(os.Stderr, "错误: 不支持直接传接口名称，请使用 -c/--confile")
@@ -260,6 +261,7 @@ func main() {
 		}
 		return
 	}
+	logStartupBanner(*pforeground, *pdaemon)
 	if *pdaemon {
 		if err := daemonMgr.WritePidFile(); err != nil {
 			logs.Error("写入PID文件失败: %v", err)

@@ -24,19 +24,19 @@ type Logger struct {
 	Printf     func(format string, args ...any) // 直接打印（无前缀）
 }
 
-// 日志级别开关常量，数字越大表示输出越详细。
+// 日志级别常量与底层 log4go 对齐，数字越大表示输出越详细。
 // 通过 level >= 对应常量判断该级别及更严重级别是否启用。
 const (
-	LogLevelSilent    = iota // 0：静默，不输出任何日志
-	LogLevelEmergency        // 1：紧急事故（系统不可用）
-	LogLevelAlert            // 2：警报（需要立即采取行动）
-	LogLevelCritical         // 3：严重错误
-	LogLevelError            // 4：错误（默认级别）
-	LogLevelWarning          // 5：警告
-	LogLevelNotice           // 6：通知（重要信息）
-	LogLevelInfo             // 7：一般信息
-	LogLevelVerbose          // 8：详细/调试信息，对应 log4go Debug 级别
-	LogLevelPrint            // 9：直接打印，无前缀
+	LogLevelSilent    = logs.LevelEmergency - 1 // -1：静默，不输出任何日志
+	LogLevelEmergency = logs.LevelEmergency     // 0：紧急事故（系统不可用）
+	LogLevelAlert     = logs.LevelAlert         // 1：警报（需要立即采取行动）
+	LogLevelCritical  = logs.LevelCritical      // 2：严重错误
+	LogLevelError     = logs.LevelError         // 3：错误
+	LogLevelWarning   = logs.LevelWarning       // 4：警告
+	LogLevelNotice    = logs.LevelNotice        // 5：通知（重要信息）
+	LogLevelInfo      = logs.LevelInfo          // 6：一般信息
+	LogLevelVerbose   = logs.LevelDebug         // 7：详细/调试信息，对应 log4go Debug 级别
+	LogLevelPrint     = logs.LevelDebug + 1     // 8：直接打印，无前缀
 )
 
 // DiscardLogf 空日志函数，用于关闭某一级别的日志输出。
@@ -79,70 +79,70 @@ func NewLogger(level int, prepend string) *Logger {
 		return "[" + prepend + "] " + format
 	}
 
-	// 9：Print 级别 → logs.Print（直接输出）
+	// 8：Print 级别 → logs.Print（直接输出）
 	if level >= LogLevelPrint {
 		logger.Printf = func(format string, args ...any) {
 			logs.Print(mkPrefix(format), args...)
 		}
 	}
 
-	// 8：Verbose 级别 → logs.Debug
+	// 7：Verbose 级别 → logs.Debug
 	if level >= LogLevelVerbose {
 		logger.Verbosef = func(format string, args ...any) {
 			logs.Debug(mkPrefix(format), args...)
 		}
 	}
 
-	// 7：Info 级别 → logs.Info
+	// 6：Info 级别 → logs.Info
 	if level >= LogLevelInfo {
 		logger.Info = func(format string, args ...any) {
 			logs.Info(mkPrefix(format), args...)
 		}
 	}
 
-	// 7：Debug 级别 → logs.Debug（与 Verbosef 同为调试输出，Debug 先于 Verbose 启用）
-	if level >= LogLevelInfo {
+	// 7：Debug 级别 → logs.Debug（与 Verbosef 同为调试输出）
+	if level >= LogLevelVerbose {
 		logger.Debug = func(format string, args ...any) {
 			logs.Debug(mkPrefix(format), args...)
 		}
 	}
 
-	// 6：Notice 级别 → logs.Notice
+	// 5：Notice 级别 → logs.Notice
 	if level >= LogLevelNotice {
 		logger.Notice = func(format string, args ...any) {
 			logs.Notice(mkPrefix(format), args...)
 		}
 	}
 
-	// 5：Warning 级别 → logs.Warning
+	// 4：Warning 级别 → logs.Warning
 	if level >= LogLevelWarning {
 		logger.Warningf = func(format string, args ...any) {
 			logs.Warning(mkPrefix(format), args...)
 		}
 	}
 
-	// 4：Error 级别 → logs.Error
+	// 3：Error 级别 → logs.Error
 	if level >= LogLevelError {
 		logger.Errorf = func(format string, args ...any) {
 			logs.Error(mkPrefix(format), args...)
 		}
 	}
 
-	// 3：Critical 级别 → logs.Critical
+	// 2：Critical 级别 → logs.Critical
 	if level >= LogLevelCritical {
 		logger.Criticalf = func(format string, args ...any) {
 			logs.Critical(mkPrefix(format), args...)
 		}
 	}
 
-	// 2：Alert 级别 → logs.Alert
+	// 1：Alert 级别 → logs.Alert
 	if level >= LogLevelAlert {
 		logger.Alertf = func(format string, args ...any) {
 			logs.Alert(mkPrefix(format), args...)
 		}
 	}
 
-	// 1：Emergency 级别 → logs.Emergency
+	// 0：Emergency 级别 → logs.Emergency
 	if level >= LogLevelEmergency {
 		logger.Emergencyf = func(format string, args ...any) {
 			logs.Emergency(mkPrefix(format), args...)
