@@ -301,6 +301,17 @@ func describePeerConfig(peer peerConfig) string {
 	return strings.Join(parts, ",")
 }
 
+func logTunnelConfigSummary(noticef func(format string, args ...any), cfg *tunnelConfig) {
+	if noticef == nil || cfg == nil {
+		return
+	}
+
+	noticef("配置: %s", describeTunnelConfig(cfg))
+	for _, peer := range cfg.Peers {
+		noticef("= 节点: %s", describePeerConfig(peer))
+	}
+}
+
 func abbreviateHexKey(key string) string {
 	if len(key) <= 12 {
 		return key

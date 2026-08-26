@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -388,5 +389,47 @@ func TestParseTunnelConfigSupportsPeerName(t *testing.T) {
 	}
 	if !strings.Contains(cfg.UAPI, "name=190网段") {
 		t.Fatalf("expected peer name to be written into UAPI, got %q", cfg.UAPI)
+	}
+}
+
+func TestLogTunnelConfigSummary(t *testing.T) {
+	conf := strings.Join([]string{
+		"[Interface]",
+		"PrivateKey = " + repeatedKeyBase64(0x11),
+		"ListenPort = 6790",
+		"MTU = 1450",
+		"Address = 192.168.190.20/24",
+		"TcpForward = true",
+		"TcpForwardEnabled = true",
+		"TestPort = 1234",
+		"TestServerEnabled = true",
+		"",
+		"[Peer]",
+		"PublicKey = " + repeatedKeyBase64(0xae),
+		"AllowedIPs = 192.168.190.0/24",
+		"Endpoint = 101.133.133.127:8357",
+		"PersistentKeepalive = 25",
+		"",
+	}, "\n")
+
+	cfg, warnings := parseTunnelConfig([]byte(conf), "wgtun1.conf")
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", warnings)
+	}
+	if cfg == nil {
+		t.Fatal("expected config, got nil")
+	}
+
+	var lines []string
+	logTunnelConfigSummary(func(format string, args ...any) {
+		lines = append(lines, fmt.Sprintf(format, args...))
+	}, cfg)
+
+	want := []string{
+		"配置: 接口=wgtun1,节点数=1,允许IP数=1,MTU=1450,监听=6790,地址=192.168.190.20/24,忽略字段=Interface.TcpForward,Interface.TcpForwardEnabled,Interface.TestPort,Interface.TestServerEnabled",
+		"= 节点: 公钥=aeaeae...aeaeae,允许IP=192.168.190.0/24,对端=101.133.133.127:8357,保持=25",
+	}
+	if !reflect.DeepEqual(lines, want) {
+		t.Fatalf("expected log lines %v, got %v", want, lines)
 	}
 }
