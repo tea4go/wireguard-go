@@ -131,7 +131,6 @@ if ($env:IS_BETA -eq 'true') {
 Write-Host '======================================================='
 Write-Host "项目目录    : $SCRIPT_DIR"
 Write-Host "版本文件    : $VERSION_FILE"
-Write-Host "构建标签    : $APP_TAG"
 if ($env:IS_BETA -eq 'true') {
     Write-Host ("应用版本    : {0}       (测试版=true: v3.0.1_B20060930_0930)" -f $APP_VER_FULL)
 } else {
