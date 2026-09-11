@@ -13,3 +13,7 @@ VERSION.txt
 sync.json5
 sync_down.json5
 sync_up.json5
+
+# 本地开发工具产物（不纳入版本库）
+.qoder/
+.learnings/
