@@ -358,7 +358,7 @@ func TestParseTunnelConfigSupportsPeerName(t *testing.T) {
 		"Name = 190网段",
 		"PublicKey = " + repeatedKeyBase64(0x22),
 		"AllowedIPs = 192.168.190.0/24",
-		"Endpoint = 101.133.133.127:8357",
+		"Endpoint = 192.0.2.1:8357",
 		"PersistentKeepalive = 25",
 		"",
 	}, "\n")
@@ -407,7 +407,7 @@ func TestLogTunnelConfigSummary(t *testing.T) {
 		"[Peer]",
 		"PublicKey = " + repeatedKeyBase64(0xae),
 		"AllowedIPs = 192.168.190.0/24",
-		"Endpoint = 101.133.133.127:8357",
+		"Endpoint = 192.0.2.1:8357",
 		"PersistentKeepalive = 25",
 		"",
 	}, "\n")
@@ -427,7 +427,7 @@ func TestLogTunnelConfigSummary(t *testing.T) {
 
 	want := []string{
 		"配置: 接口=wgtun1,节点数=1,允许IP数=1,MTU=1450,监听=6790,地址=192.168.190.20/24,忽略字段=Interface.TcpForward,Interface.TcpForwardEnabled,Interface.TestPort,Interface.TestServerEnabled",
-		"= 节点: 公钥=aeaeae...aeaeae,允许IP=192.168.190.0/24,对端=101.133.133.127:8357,保持=25",
+		"= 节点: 公钥=aeaeae...aeaeae,允许IP=192.168.190.0/24,对端=192.0.2.1:8357,保持=25",
 	}
 	if !reflect.DeepEqual(lines, want) {
 		t.Fatalf("expected log lines %v, got %v", want, lines)

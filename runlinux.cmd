@@ -15,6 +15,7 @@ REM   runlinux.cmd                 -> default linux/amd64
 REM   runlinux.cmd -Arch arm64     -> linux/arm64
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS1_SCRIPT%" -OS linux -Arch amd64 %*
 
-scp -P 22   wireguard root@101.133.133.127:~/
-scp -P 6443 wireguard root@8.210.19.98:/opt/wireguard/
+REM 部署到服务器：请将 YOUR_SERVER_IP 替换为真实部署地址
+scp -P 22   wireguard root@YOUR_SERVER_IP:~/
+scp -P 6443 wireguard root@YOUR_SERVER_IP:/opt/wireguard/
 exit /b %ERRORLEVEL%
