@@ -13,27 +13,33 @@
 #
 set -euo pipefail
 
-# ==================== 可配置参数（按需修改） ====================
-# 服务器公钥与端点。为避免在仓库中留下真实值，默认留占位符；
-# 安装前请二选一填写：
-#   1) 直接修改下面两行；或
-#   2) 用环境变量覆盖：SERVER_PUBLIC_KEY=... SERVER_ENDPOINT=... sudo -E ./install-wireguard-go.sh
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ---------- 加载 .env（若存在）----------
+# .env 用于存放敏感配置（服务器公钥、端点等），已被 .gitignore 忽略，切勿提交。
+# 使用方式：复制 .env.example 为 .env 并填写真实值；也可直接用环境变量覆盖。
+if [ -f "$REPO_DIR/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$REPO_DIR/.env"
+  set +a
+fi
+
+# ==================== 可配置参数（优先 .env / 环境变量，其次默认值） ====================
 SERVER_PUBLIC_KEY="${SERVER_PUBLIC_KEY:-<填写服务器公钥>}"
 SERVER_ENDPOINT="${SERVER_ENDPOINT:-<填写服务器IP:端口>}"
-CLIENT_ADDRESS="192.168.190.22/32"      # 客户端隧道地址（服务器侧需登记为 allowed-ips）
-ALLOWED_IPS="192.168.190.0/24"          # 分流隧道路由网段
-KEEPALIVE="25"
-MTU="1420"
-VERSION=""                               # 非空则注入版本号（否则 --version 显示 0.0.1）
+CLIENT_ADDRESS="${CLIENT_ADDRESS:-192.168.190.22/32}"   # 客户端隧道地址（服务器侧需登记为 allowed-ips）
+ALLOWED_IPS="${ALLOWED_IPS:-192.168.190.0/24}"          # 分流隧道路由网段
+KEEPALIVE="${KEEPALIVE:-25}"
+MTU="${MTU:-1420}"
+VERSION="${VERSION:-}"                                   # 非空则注入版本号（否则 --version 显示 0.0.1）
 
-INTERFACE_NAME="wg0"                     # 接口名 = 配置文件名
-INSTALL_DIR="/opt/wireguard"
-CONF_FILE="${INSTALL_DIR}/${INTERFACE_NAME}.conf"
-SYSTEMD_UNIT="/etc/systemd/system/wireguard-go.service"
-ROUTE_SCRIPT="${INSTALL_DIR}/${INTERFACE_NAME}-route.sh"
+INTERFACE_NAME="${INTERFACE_NAME:-wg0}"                  # 接口名 = 配置文件名
+INSTALL_DIR="${INSTALL_DIR:-/opt/wireguard}"
+CONF_FILE="${INSTALL_DIR}/${INTERFACE_NAME}.conf"        # 派生，勿在 .env 中覆盖
+SYSTEMD_UNIT="${SYSTEMD_UNIT:-/etc/systemd/system/wireguard-go.service}"
+ROUTE_SCRIPT="${INSTALL_DIR}/${INTERFACE_NAME}-route.sh" # 派生，勿在 .env 中覆盖
 # ===============================================================
-
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
