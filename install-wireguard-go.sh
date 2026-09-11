@@ -14,8 +14,12 @@
 set -euo pipefail
 
 # ==================== 可配置参数（按需修改） ====================
-SERVER_PUBLIC_KEY="rsmxc4MOclaGL6or7jf6bYrJgszcBJ39+mBfrja4ByU="
-SERVER_ENDPOINT="101.133.133.127:8357"
+# 服务器公钥与端点。为避免在仓库中留下真实值，默认留占位符；
+# 安装前请二选一填写：
+#   1) 直接修改下面两行；或
+#   2) 用环境变量覆盖：SERVER_PUBLIC_KEY=... SERVER_ENDPOINT=... sudo -E ./install-wireguard-go.sh
+SERVER_PUBLIC_KEY="${SERVER_PUBLIC_KEY:-<填写服务器公钥>}"
+SERVER_ENDPOINT="${SERVER_ENDPOINT:-<填写服务器IP:端口>}"
 CLIENT_ADDRESS="192.168.190.22/32"      # 客户端隧道地址（服务器侧需登记为 allowed-ips）
 ALLOWED_IPS="192.168.190.0/24"          # 分流隧道路由网段
 KEEPALIVE="25"
@@ -52,6 +56,14 @@ die()  { printf '\033[1;31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # ---------- 前置检查 ----------
 [ "$(id -u)" -eq 0 ] || die "请用 root 运行：sudo $0"
+
+# 校验服务器参数已填写；占位符会生成无效配置、导致隧道无法建立
+case "$SERVER_PUBLIC_KEY" in
+  ""|*"<"*">"*) die "请先填写 SERVER_PUBLIC_KEY（服务器公钥）：编辑脚本顶部，或 SERVER_PUBLIC_KEY=... sudo -E $0" ;;
+esac
+case "$SERVER_ENDPOINT" in
+  ""|*"<"*">"*) die "请先填写 SERVER_ENDPOINT（服务器 IP:端口）：编辑脚本顶部，或 SERVER_ENDPOINT=... sudo -E $0" ;;
+esac
 
 GO_BIN="$(command -v go 2>/dev/null || true)"
 if [ -z "$GO_BIN" ]; then
