@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 将 wireguard-go 静态编译并部署到远程 Linux 主机的 /opt/wireguard。
+# 将 wireguard-go 静态编译并部署到远程 Linux 主机的 /opt/wireguard，并一并部署 install-wireguard-go.sh。
 #
 # 关键点：使用 CGO_ENABLED=0 交叉编译纯静态二进制，产物不依赖 glibc 版本，
 # 因此能在老系统（如 Ubuntu 20.04 / glibc 2.31）上直接运行，规避
@@ -61,12 +61,13 @@ file "$BUILD_DIR/wireguard-go" | sed 's/^/    /'
 
 echo "==> 部署到 $TARGET:$REMOTE_PORT  $INSTALL_DIR/"
 ssh -p "$REMOTE_PORT" "$TARGET" "mkdir -p '$INSTALL_DIR'"
-scp -P "$REMOTE_PORT" "$BUILD_DIR/wireguard-go" "$TARGET:$INSTALL_DIR/"
+scp -P "$REMOTE_PORT" "$BUILD_DIR/wireguard-go" "$SCRIPT_DIR/install-wireguard-go.sh" "$TARGET:$INSTALL_DIR/"
 
 echo "==> 远程验证..."
 ssh -p "$REMOTE_PORT" "$TARGET" "INSTALL_DIR='$INSTALL_DIR' bash -s" <<'REMOTE'
 cd "$INSTALL_DIR" || exit 1
 echo "    wireguard-go -> $(timeout 15 ./wireguard-go --version 2>&1 | head -1)"
+echo "    install-wireguard-go.sh -> $( [ -f ./install-wireguard-go.sh ] && echo 已部署 || echo 缺失 )"
 REMOTE
 
 echo "==> 完成。"
