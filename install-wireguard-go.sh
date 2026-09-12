@@ -7,7 +7,8 @@
 #   sudo ./install-wireguard-go.sh --skip-systemd  # 只装二进制+配置，不装 systemd
 #
 # 说明:
-#   - 需要 Go 1.23.1+（用于编译与生成密钥）
+#   - 无需编译：直接使用已部署的 wireguard-go 二进制（由 deploy.sh 部署到 /opt/wireguard）
+#   - 密钥生成使用 wireguard-tools 的 wg，无 wg 时回退 openssl，不再依赖 Go
 #   - 敏感配置（服务器公钥、端点等）从脚本同目录的 .env 读取；先复制 .env.example 为 .env 并填写
 #   - 若 /opt/wireguard/<接口>.conf 已存在则复用（不重新生成私钥，身份不变）
 #   - 首次安装会生成新密钥对，请在结尾把公钥登记到 WireGuard 服务器
@@ -33,7 +34,6 @@ CLIENT_ADDRESS="${CLIENT_ADDRESS:-192.168.190.22/32}"   # 客户端隧道地址�
 ALLOWED_IPS="${ALLOWED_IPS:-192.168.190.0/24}"          # 分流隧道路由网段
 KEEPALIVE="${KEEPALIVE:-25}"
 MTU="${MTU:-1420}"
-VERSION="${VERSION:-}"                                   # 非空则注入版本号（否则 --version 显示 0.0.1）
 
 INTERFACE_NAME="${INTERFACE_NAME:-wg0}"                  # 接口名 = 配置文件名
 INSTALL_DIR="${INSTALL_DIR:-/opt/wireguard}"
@@ -72,68 +72,30 @@ case "$SERVER_ENDPOINT" in
   ""|*"<"*">"*) die "请先填写 SERVER_ENDPOINT（服务器 IP:端口）：编辑脚本顶部，或 SERVER_ENDPOINT=... sudo -E $0" ;;
 esac
 
-GO_BIN="$(command -v go 2>/dev/null || true)"
-if [ -z "$GO_BIN" ]; then
-  # sudo 会重置 PATH，回退到 SUDO_USER / USER 的常见 Go 安装位置（.g / .local / go）
-  for u in "${SUDO_USER:-}" "$USER"; do
-    [ -z "$u" ] && continue
-    h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
-    [ -z "$h" ] && continue
-    for c in "$h/.g/go/bin/go" "$h/.local/go/bin/go" "$h/go/bin/go"; do
-      if [ -x "$c" ]; then GO_BIN="$c"; break 2; fi
-    done
-  done
-fi
-[ -n "$GO_BIN" ] || die "未找到 go，请先安装 Go 1.23.1+"
-log "使用 Go: $($GO_BIN version)"
+# 定位已部署的 wireguard-go 二进制（deploy.sh 部署到 INSTALL_DIR，或与脚本同目录）
+WG_BIN="$INSTALL_DIR/wireguard-go"
+[ -x "$WG_BIN" ] || WG_BIN="$REPO_DIR/wireguard-go"
+[ -x "$WG_BIN" ] || die "未找到 wireguard-go 二进制，请先运行 deploy.sh 部署到 $INSTALL_DIR/"
+log "使用二进制: $WG_BIN"
 
-# ---------- Go 模块环境 ----------
-# sudo 会重置环境，这里显式设置模块代理（国内默认 goproxy.cn，可用环境变量覆盖），
-# 并复用原用户的模块缓存，避免重复下载依赖。
-export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
-if [ -n "${SUDO_USER:-}" ]; then
-  SUDO_HOME="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)"
-  if [ -n "$SUDO_HOME" ] && [ -d "$SUDO_HOME/go/pkg/mod" ]; then
-    export GOMODCACHE="${GOMODCACHE:-$SUDO_HOME/go/pkg/mod}"
-  fi
-fi
-
-# ---------- 1. 编译 ----------
-log "编译 wireguard-go ..."
-BUILD_ARGS=(build -trimpath)
-[ -n "$VERSION" ] && BUILD_ARGS+=(-ldflags "-X main.appVer=$VERSION")
-BUILD_ARGS+=(-o "$WORK_DIR/wireguard-go" .)
-( cd "$REPO_DIR" && "$GO_BIN" "${BUILD_ARGS[@]}" )
-
-# ---------- 2. 密钥与配置 ----------
+# ---------- 1. 密钥与配置 ----------
 NEW_KEY=0
 if [ -f "$CONF_FILE" ]; then
   warn "检测到已有配置 $CONF_FILE，复用（私钥保持不变）"
 else
   NEW_KEY=1
   log "生成客户端密钥对 ..."
-  cat > "$WORK_DIR/keygen.go" <<'EOF'
-package main
-
-import (
-	"crypto/ecdh"
-	"crypto/rand"
-	"encoding/base64"
-	"fmt"
-)
-
-func main() {
-	priv, err := ecdh.X25519().GenerateKey(rand.Reader)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(base64.StdEncoding.EncodeToString(priv.Bytes()))
-	fmt.Println(base64.StdEncoding.EncodeToString(priv.PublicKey().Bytes()))
-}
-EOF
-  "$GO_BIN" run "$WORK_DIR/keygen.go" > "$WORK_DIR/keys.txt"
-  PRIV="$(sed -n '1p' "$WORK_DIR/keys.txt")"
-  PUB="$(sed -n '2p' "$WORK_DIR/keys.txt")"
+  PRIV=""; PUB=""
+  if command -v wg >/dev/null 2>&1; then
+    PRIV="$(wg genkey)"
+    PUB="$(printf '%s\n' "$PRIV" | wg pubkey)"
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl genpkey -algorithm X25519 -out "$WORK_DIR/key.pem" 2>/dev/null
+    PRIV="$(openssl pkey -in "$WORK_DIR/key.pem" -outform DER 2>/dev/null | tail -c 32 | base64)"
+    PUB="$(openssl pkey -in "$WORK_DIR/key.pem" -pubout -outform DER 2>/dev/null | tail -c 32 | base64)"
+  else
+    die "未找到 wg 或 openssl，无法生成密钥对"
+  fi
 
   log "写入配置 $CONF_FILE ..."
   umask 077
@@ -152,13 +114,13 @@ EOF
   chmod 600 "$WORK_DIR/${INTERFACE_NAME}.conf"
 fi
 
-# ---------- 3. 安装 ----------
+# ---------- 2. 安装 ----------
 log "安装到 $INSTALL_DIR ..."
 install -d -m 0755 "$INSTALL_DIR"
-install -m 0755 "$WORK_DIR/wireguard-go" "$INSTALL_DIR/wireguard-go"
+[ "$WG_BIN" = "$INSTALL_DIR/wireguard-go" ] || install -m 0755 "$WG_BIN" "$INSTALL_DIR/wireguard-go"
 [ -f "$WORK_DIR/${INTERFACE_NAME}.conf" ] && install -m 0600 "$WORK_DIR/${INTERFACE_NAME}.conf" "$CONF_FILE"
 
-# ---------- 4. 路由脚本 + systemd ----------
+# ---------- 3. 路由脚本 + systemd ----------
 if [ "$SKIP_SYSTEMD" -eq 0 ]; then
   log "生成路由脚本 $ROUTE_SCRIPT ..."
   cat > "$WORK_DIR/${INTERFACE_NAME}-route.sh" <<EOF
@@ -202,7 +164,7 @@ EOF
   systemctl enable --now wireguard-go.service
 fi
 
-# ---------- 5. 汇总 ----------
+# ---------- 4. 汇总 ----------
 echo
 log "安装完成："
 log "  二进制 : $INSTALL_DIR/wireguard-go"
