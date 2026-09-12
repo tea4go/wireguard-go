@@ -20,3 +20,6 @@ sync_up.json5
 
 # 本地敏感配置（服务器公钥、端点等），切勿提交
 .env
+
+# 本地 markdown 主题文件，不纳入版本库
+files/markdown-theme/
